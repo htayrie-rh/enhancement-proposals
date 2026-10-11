@@ -12,7 +12,7 @@ OSAC resources expose labels and annotations without a visibility or ownership b
 
 ## In Scope
 
-- Cloud Provider Admins and Cloud Infrastructure Admins can view, add, change, and remove reserved-prefix labels and annotations on every OSAC resource that exposes labels or annotations through the privileged API, console, and CLI. Both admin personas have the same permissions and supported interfaces. [Clarify: R1.Q1] [Clarify: R1.Q2] [Clarify: R1.Q3]
+- Cloud Provider Admins can view, add, change, and remove reserved-prefix labels and annotations on every OSAC resource that exposes labels or annotations. Cloud Infrastructure Admins can perform the same actions on infrastructure resources. Both personas use the privileged API, console, and CLI within their respective resource scopes. [Clarify: R1.Q2] [Clarify: R1.Q3]
 - Tenant-facing API responses and console views omit reserved-prefix labels and annotations.
 - Tenant create and update requests that attempt to add, overwrite, or remove reserved-prefix labels or annotations fail as a whole with a clear error. No changes from the request are applied, including changes to ordinary metadata. [Clarify: R1.Q4]
 - Ordinary labels and annotations retain their existing tenant visibility and behavior.
@@ -25,9 +25,13 @@ OSAC resources expose labels and annotations without a visibility or ownership b
 
 ## User Stories
 
-### Cloud Provider Admin / Cloud Infrastructure Admin
+### Cloud Provider Admin
 
-- As a Cloud Provider Admin or Cloud Infrastructure Admin, I want to view, add, change, and remove reserved-prefix labels and annotations across OSAC resources through the privileged API, console, or CLI, so that provider teams can maintain metadata for their operations without exposing it to tenants. [Clarify: R1.Q1] [Clarify: R1.Q2] [Clarify: R1.Q3]
+- As a Cloud Provider Admin, I want to view, add, change, and remove reserved-prefix labels and annotations across all OSAC resources that expose them through the privileged API, console, or CLI, so that I can maintain provider-side tracking metadata without exposing it to tenants. [Clarify: R1.Q1] [Clarify: R1.Q3]
+
+### Cloud Infrastructure Admin
+
+- As a Cloud Infrastructure Admin, I want to view, add, change, and remove reserved-prefix labels and annotations on infrastructure resources through the privileged API, console, or CLI, so that infrastructure operations can use provider-side metadata without exposing it to tenants. [Clarify: R1.Q2] [Clarify: R1.Q3]
 
 ### Tenant Admin
 
@@ -41,6 +45,7 @@ OSAC resources expose labels and annotations without a visibility or ownership b
 
 ## Provenance
 
-Authored: draft @ prd 0.11.5 - 6d28c88, workspace main @ f0a8211
+Authored: revise @ prd 0.11.5 - 6d28c88, workspace main @ f0a8211
+Phases: draft, revise
 
-<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"prd","workflow_version":"0.11.5","ai_workflows":"6d28c88","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
+<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"prd","workflow_version":"0.11.5","ai_workflows":"6d28c88","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->

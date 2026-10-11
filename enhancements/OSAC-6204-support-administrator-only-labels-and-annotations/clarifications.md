@@ -18,11 +18,11 @@ All OSAC resources that expose labels or annotations.
 
 #### Impact
 
-The PRD scope includes every OSAC resource that exposes labels or annotations.
+The feature covers every OSAC resource that exposes labels or annotations. Admin access within that coverage follows each persona's resource scope in Jira.
 
 #### Decision (D1)
 
-Administrator-only labels and annotations apply to all OSAC resources that expose labels or annotations.
+Administrator-only labels and annotations apply to all OSAC resources that expose labels or annotations. Cloud Provider Admin access spans supported resources; Cloud Infrastructure Admin access is scoped to infrastructure resources.
 
 ---
 
@@ -32,15 +32,15 @@ Should both Cloud Provider Admin and Cloud Infrastructure Admin be able to view,
 
 #### Answer
 
-If Jira does not specify a difference, treat both admin personas the same. In response to a follow-up, the user confirmed that “manage” means both personas can view, add, change, and remove reserved-prefix labels and annotations.
+Treat both admin personas the same unless Jira specifies a difference. Jira scopes Cloud Provider Admin access across supported resources and Cloud Infrastructure Admin access to infrastructure resources. Both personas can view, add, change, and remove reserved-prefix labels and annotations within their respective resource scopes.
 
 #### Impact
 
-Both admin personas can perform the same actions: view, add, change, and remove reserved-prefix labels and annotations.
+Both admin personas have the same actions, but their resource scopes differ: Cloud Provider Admin access spans supported resources, while Cloud Infrastructure Admin access covers infrastructure resources.
 
 #### Decision (D2)
 
-Cloud Provider Admin and Cloud Infrastructure Admin have the same permissions to view, add, change, and remove reserved-prefix labels and annotations.
+Cloud Provider Admin and Cloud Infrastructure Admin can both view, add, change, and remove reserved-prefix labels and annotations; Cloud Provider Admin access spans supported resources, while Cloud Infrastructure Admin access is limited to infrastructure resources.
 
 ---
 
@@ -50,15 +50,15 @@ Jira names a privileged API and console. Should both admin personas be able to p
 
 #### Answer
 
-Both admin personas should have the same actions through the privileged API, console, and CLI wherever Jira does not distinguish them. The user confirmed that CLI and the other interfaces are equivalent.
+Both admin personas should have the same actions through the privileged API, console, and CLI. These interfaces apply within each persona's resource scope in Jira. The user confirmed that CLI and the other interfaces are equivalent.
 
 #### Impact
 
-Both admin personas can use the privileged API, console, and CLI for the same metadata actions.
+Both admin personas can use the privileged API, console, and CLI for the same metadata actions within their respective resource scopes.
 
 #### Decision (D3)
 
-Cloud Provider Admin and Cloud Infrastructure Admin have the same view/add/change/remove actions through the privileged API, console, and CLI.
+Cloud Provider Admin and Cloud Infrastructure Admin have the same view/add/change/remove actions through the privileged API, console, and CLI, within their respective resource scopes.
 
 ---
 
