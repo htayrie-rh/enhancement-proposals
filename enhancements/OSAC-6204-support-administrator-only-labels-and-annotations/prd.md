@@ -1,10 +1,12 @@
 # Support Administrator-Only Labels and Annotations
 
-| Field       | Value |
-|-------------|-------|
-| Author(s)   | Haim Tayrie <htayrie@redhat.com> |
-| Jira        | [OSAC-6204](https://redhat.atlassian.net/browse/OSAC-6204) |
-| Date        | 2026-10-11 |
+| Field             | Value |
+|-------------------|-------|
+| Author(s)         | Haim Tayrie <htayrie@redhat.com> |
+| Jira              | [OSAC-6204](https://redhat.atlassian.net/browse/OSAC-6204) |
+| Date              | 2026-10-11 |
+| Affected services | All OSAC services with resources that expose labels or annotations |
+| Target milestone  | 0.4 (Tech Preview) |
 
 ## Problem Statement
 
@@ -22,6 +24,7 @@ OSAC resources expose labels and annotations without a visibility or ownership b
 
 - Changing existing behavior for non-reserved labels and annotations.
 - Replacing labels or annotations with resource-specific typed fields.
+- Adding in-place upgrade support; OSAC does not currently support in-place upgrades.
 
 ## User Stories
 
@@ -46,6 +49,6 @@ OSAC resources expose labels and annotations without a visibility or ownership b
 ## Provenance
 
 Authored: revise @ prd 0.11.5 - 6d28c88, workspace main @ f0a8211
-Phases: draft, revise
+Phases: draft, revise, revise
 
-<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"prd","workflow_version":"0.11.5","ai_workflows":"6d28c88","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
+<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"prd","workflow_version":"0.11.5","ai_workflows":"6d28c88","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
