@@ -2,7 +2,7 @@
 
 ## Status
 
-- Rounds completed: 1
+- Rounds completed: 2
 - Open gaps: 0
 - Exit criteria met: Yes
 
@@ -79,6 +79,24 @@ Tenants receive an error when an update attempts to change reserved-prefix metad
 Reject a tenant request that attempts to change reserved-prefix metadata as a whole, return a clear error, and leave all stored metadata unchanged.
 
 ---
+
+## Round 2 — Equal admin resource access
+
+### R2.Q1: Do the admin roles have the same resource scope?
+
+The existing Jira-derived clarification limits Cloud Infrastructure Admin to infrastructure resources. Does “same permissions” mean the two roles also have identical resource coverage for this feature?
+
+#### Answer
+
+Yes. The user clarified that there is no difference between the admin roles for this feature. Both can view, add, change, and remove reserved-prefix labels and annotations on every OSAC resource that exposes them.
+
+#### Impact
+
+Both roles use the same resource allowlist through the privileged API, console, and CLI. The earlier role-specific resource-scope interpretation no longer applies to this feature.
+
+#### Decision (D5)
+
+Cloud Provider Admin and Cloud Infrastructure Admin have identical reserved-metadata permissions and resource coverage across all OSAC resources that expose labels or annotations. D5 supersedes the role-specific scope clauses in D1, D2, and D3.
 
 ## Remaining Gaps
 
