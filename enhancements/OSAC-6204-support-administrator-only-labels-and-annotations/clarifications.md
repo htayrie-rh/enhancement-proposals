@@ -2,7 +2,7 @@
 
 ## Status
 
-- Rounds completed: 2
+- Rounds completed: 3
 - Open gaps: 0
 - Exit criteria met: Yes
 
@@ -97,6 +97,26 @@ Both roles use the same resource allowlist through the privileged API, console, 
 #### Decision (D5)
 
 Cloud Provider Admin and Cloud Infrastructure Admin have identical reserved-metadata permissions and resource coverage across all OSAC resources that expose labels or annotations. D5 supersedes the role-specific scope clauses in D1, D2, and D3.
+
+## Round 3 — Whole-map tenant update semantics
+
+### R3.Q1: What happens to reserved keys omitted from a tenant update?
+
+Should whole-map tenant updates retain existing reserved entries, including keys omitted from the supplied labels or annotations?
+
+#### Answer
+
+Existing reserved keys should be retained in any tenant update request.
+
+#### Impact
+
+Tenant whole-map omission always preserves stored reserved entries. The server rejects supplied reserved entries and accepted explicit reserved-key targets as a whole. Updated CLI and console controls reject named reserved set/removal operations before constructing or sending an Update, including mixed ordinary operations. A server cannot infer a removed target once a client has discarded it from the map; older clients may report an ordinary update as successful while the server retains reserved entries.
+
+Authorized private administrators continue replacing selected maps, with omitted keys removed. Existing masks and version locking are reused.
+
+#### Decision (D6)
+
+Every tenant update retains the reserved portion of the locked stored object. Omission from a whole-map request is not reserved-key removal intent. D6 clarifies D4 for whole-map requests; explicit forbidden input and named client operations still fail without applying an ordinary subset.
 
 ## Remaining Gaps
 

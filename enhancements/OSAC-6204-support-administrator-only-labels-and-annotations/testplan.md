@@ -3,11 +3,11 @@
 ## Overview
 
 - **Source:** [PRD](prd.md), its co-located clarifications, and [design draft](design.md).
-- **Status:** Planned behavioral coverage; no implementation tests were executed during this draft phase.
-- **Coverage:** 30 cases, five of five In Scope bullets, and 11 of 11 interface changes. Twenty-eight cases are planned for automation; two are manual documentation reviews. Browser execution and exhaustive deployed fixtures still require the work recorded under G-1 and G-2.
-- **Target:** 0.4 Tech Preview. Both owned design questions must be resolved before implementing their affected contracts.
+- **Status:** Planned behavioral coverage; no implementation tests were executed during drafting or this revision.
+- **Coverage:** 29 cases, five of five In Scope bullets, and 11 of 11 interface changes. Twenty-seven cases are planned for automation; two are manual documentation reviews. Browser execution and exhaustive deployed fixtures still require the work recorded under G-1 and G-2.
+- **Target:** 0.4 Tech Preview. The networking metadata contract question must be resolved before delivery.
 
-The PRD uses In Scope bullets rather than FR/NFR identifiers. IS-1 through IS-5 below are local traceability anchors to those exact bullets, not new requirements. Implementation details such as the key mask, capability preflight, transaction rollback, and filter projection are testable design mechanisms for those requirements.
+The PRD uses In Scope bullets rather than FR/NFR identifiers. IS-1 through IS-5 below are local traceability anchors to those exact bullets, not new requirements. Implementation details such as selected-map replacement, reserved-entry preservation, capability preflight, transaction rollback, and filter projection are testable design mechanisms for those requirements.
 
 ## Requirements and interface coverage
 
@@ -15,9 +15,11 @@ The PRD uses In Scope bullets rather than FR/NFR identifiers. IS-1 through IS-5 
 |---|---|---|---|
 | IS-1 | Both admin personas read/add/change/remove reserved metadata through private API, console, and CLI on all metadata-bearing resources | TC-IS1-01–09 | IC-1, IC-2, IC-3, IC-7, IC-8, IC-9, IC-11 |
 | IS-2 | Tenant API responses and console omit reserved keys | TC-IS2-01–06 | IC-1, IC-2, IC-5, IC-6, IC-7, IC-8, IC-9 |
-| IS-3 | Tenant add/change/remove attempts fail the whole request clearly | TC-IS3-01–08 | IC-1, IC-3, IC-4, IC-7, IC-8, IC-9 |
+| IS-3 | Tenant add/change/remove attempts fail the whole request clearly | TC-IS3-01–06, TC-IS3-08 | IC-1, IC-3, IC-4, IC-7, IC-8, IC-9 |
 | IS-4 | Ordinary metadata keeps its existing behavior | TC-IS4-01–05 | IC-1, IC-2, IC-3, IC-4, IC-5, IC-6, IC-8, IC-9, IC-11 |
 | IS-5 | Document exact reserved prefix and matching behavior | TC-IS5-01–02 | IC-1, IC-10, IC-11 |
+
+Under confirmed D6, tenant map omission always preserves stored reserved entries. Named forbidden CLI/console operations fail locally before any Update; supplied reserved entries and accepted explicit protected mask paths fail on the server. A whole-map request cannot reveal a removal target that a client has already discarded.
 
 Cases can provide evidence for several bullets; their primary anchor determines numbering only. The case metadata below lists every tested interface change. IC-1 through IC-11 refer to the design's API Extensions table.
 
@@ -49,16 +51,16 @@ Commands below describe implementation-phase execution; none was run to validate
 
 | Tier / owner | Suite and proposed additions | Working directory / execution | Real versus mocked dependencies; gaps |
 |---|---|---|---|
-| Unit / DEV | Existing fulfillment auth, validation, mapper, mask/filter, CLI, and transaction tests; add reserved predicate, capability, explicit target, reflection, parser, and rollback-order cases | `osac/fulfillment-service`: `ginkgo run -r internal` (use workspace-local GOCACHE/GOTMPDIR; heavy suites sequentially) | Policy/parser/transport fixtures and test doubles. This broad command also reaches the component suites below; report their real dependencies separately. |
-| Component integration / DEV | Existing `internal/servers/servers_suite_test.go` and server tests; add full candidate, networking metadata compatibility/scoped exceptions, inventory, concurrency, and error rollback cases | `osac/fulfillment-service`: `ginkgo run --timeout 10m internal/servers` | Real PostgreSQL from database.Container; in-process RPC and mocked tenancy/attribution. This does not establish deployed Keycloak, REST, proxy, or provider behavior. |
+| Unit / DEV | Existing fulfillment auth, validation, mapper, mask/filter, CLI, and transaction tests; add reserved predicate, capability, raw-input/explicit-path rejection, map selection/merge, client operation checks, and rollback-order cases | `osac/fulfillment-service`: `ginkgo run -r internal` (use workspace-local GOCACHE/GOTMPDIR; heavy suites sequentially) | Policy/parser/transport fixtures and test doubles. This broad command also reaches the component suites below; report their real dependencies separately. |
+| Component integration / DEV | Existing `internal/servers/servers_suite_test.go` and server tests; add full candidate, networking metadata compatibility and lifecycle restrictions, inventory, concurrency, and error rollback cases | `osac/fulfillment-service`: `ginkgo run --timeout 10m internal/servers` | Real PostgreSQL from database.Container; in-process RPC and mocked tenancy/attribution. This does not establish deployed Keycloak, REST, proxy, or provider behavior. |
 | Events component integration / DEV | Existing `internal/servers/events_server_test.go`; add nested projection and filter privacy cases | `osac/fulfillment-service`: same server-suite command, executed once for the combined suite | Real Kafka via Kafka.Container, bufconn RPC, and mocked tenancy. Record broker startup/subscription readiness. Deployed identity coverage requires the next tier. |
 | Deployed Fulfillment integration / DEV | Extend `it/it_labels_test.go` and `it/it_annotations_test.go`; proposed `it/it_metadata_inventory_test.go` and `it/it_metadata_transport_test.go` | `osac/fulfillment-service`: `make -C ../osac-installer test PLATFORM=kind PROFILE=dev NS=osac SUITE=fulfillment` | Real deployed API, PostgreSQL, Keycloak, REST gateway, and CLI. Seed metadata fixtures; this does not prove infrastructure-provider provisioning. G-2: all 35 valid fixtures, both admin accounts, both tenant accounts, and restricted-client coverage must be added. |
 | UI unit / DEV | Existing Vitest suites/mock Connect transport; add editor, all-type registry, capabilities, tenant rendering/search, and error retention cases | `osac/osac-ui`: `pnpm test` | Mock transport/session data. Does not prove deployed proxy/API redaction or real login mapping. |
-| Proxy unit / DEV | Existing bridge/middleware tests; add helper forwarding and permission/concurrency error preservation | `osac/osac-ui/proxy`: `go test ./bridge ./middleware` with workspace-local Go cache/temp | Transport/schema fixtures. Real Connect forwarding remains a deployed browser/API assertion. |
+| Proxy unit / DEV | Existing bridge/middleware tests; add existing map/mask/lock forwarding and permission/concurrency error preservation | `osac/osac-ui/proxy`: `go test ./bridge ./middleware` with workspace-local Go cache/temp | Transport/schema fixtures. Real Connect forwarding remains a deployed browser/API assertion. |
 | Deployed browser E2E / QE | Proposed maintained metadata journey suite under the mono-repo cross-component E2E structure `osac/tests/e2e/core/`; editor, all-resource registry, four personas, network response privacy, and stale/error behavior | **Runner/command must be added as part of G-1.** Existing `pnpm playwright` in `osac/osac-ui` provides scratch live-cluster investigation, not a maintained metadata suite. | Real browser, console, proxy, API, and Keycloak. A tracked login-only spec does not supply metadata coverage; current package scripts/configuration do not establish this runner. No test command is invented here. |
 | Documentation / DEV | API schema/reference, CLI help, admin and tenant guides | Manual review of TC-IS5-01 and TC-IS5-02 | Compare documented examples with the implemented contract and transport evidence. |
 
-Remote integration or E2E execution must follow `~/.codex/skills/remote-integration-tests/SKILL.md`, including fresh-cluster, detached-run, resource-limit, routing, result-recovery, and cleanup requirements. This draft does not initiate an execution environment.
+Remote integration or E2E execution must follow `~/.codex/skills/remote-integration-tests/SKILL.md`, including fresh-cluster, detached-run, resource-limit, routing, result-recovery, and cleanup requirements. This revision does not initiate an execution environment.
 
 ## Test Cases
 
@@ -74,20 +76,20 @@ Remote integration or E2E execution must follow `~/.codex/skills/remote-integrat
 
 ##### Preconditions
 
-For each of the 35 persistent types in the inventory below, seed valid dependencies and an object with an ordinary label and annotation. Both administrator accounts have the reviewed platform-admin authority.
+For each of the 35 persistent types, seed valid dependencies and an object with ordinary entries in both maps. Both administrator accounts have the reviewed platform-admin authority.
 
 ##### Steps
 
-1. For each administrator, type, and map, Create an object containing a reserved entry where Create is supported, then Get and List it through its private service.
-2. Update the reserved value, add a second reserved key, and remove each reserved key using the typed key mask.
-3. Use an authorized private read to compare values, ordinary entries, identifier, and version after every mutation.
+1. For each administrator, type, and map, Create with a reserved entry where supported, then Get/List through its private service.
+2. Read the full map/version, change a reserved value and add a second reserved key, then remove each by omission from a replacement map. Select the edited map with the existing update_mask and set lock=true.
+3. Compare ordinary entries, reserved values, identifier, and version after each mutation using an authorized private read.
 
 ##### Expected Results
 
-- Each supported Create/Update succeeds for both personas and both maps; Get/List include the exact reserved keys and values.
-- All 35 persistent types have tested private Update coverage; private-only types are included. Ordinary entries remain unchanged.
+- Every supported Create/Update succeeds for both personas and both maps; private Get/List include exact reserved keys and values.
+- All 35 persistent types have private Update coverage, including private-only types. Clients retain untouched entries and fields.
 
-#### TC-IS1-02: Exact key-mask set, empty value, and clear semantics
+#### TC-IS1-02: Administrator map replacement, empty values, and deletion by omission
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -97,18 +99,20 @@ For each of the 35 persistent types in the inventory below, seed valid dependenc
 
 ##### Preconditions
 
-An administrator owns a private object with two ordinary and two reserved entries in each map.
+An administrator reads a private object with two ordinary and two reserved entries in each map, plus an unrelated mutable field.
 
 ##### Steps
 
-1. Submit a mask naming one label and one annotation with values present in the corresponding object maps; include an empty-string value in a separate iteration.
-2. Submit the same targets with those keys absent from their maps to clear them.
-3. Repeat with no ordinary update_mask, then with an explicit ordinary mask for a separate non-metadata field on a mutable type.
+1. Select metadata.labels and submit a complete edited map with a reserved value changed, another key omitted, and a retained empty-string value. Leave annotations unselected.
+2. Select both maps and replace their contents; separately select a map with an empty or omitted map payload to clear it.
+3. Repeat with an allowed non-metadata field in the existing mask, and compare existing unmasked replacement on types that support it.
+4. For an ordinary key supported by the existing native per-key path grammar, verify its previous update behavior remains intact.
 
 ##### Expected Results
 
-- Only named keys change; an empty string remains a stored value and absence clears a target.
-- With no ordinary mask only the selected keys change. An allowed disjoint ordinary field update is applied atomically with the key edit. Untargeted map entries remain intact.
+- A selected private administrator map equals the submitted map: omitted ordinary and reserved entries are deleted; an empty string is stored as a value.
+- A selected empty/omitted map clears completely. Unselected maps and fields remain intact. Allowed mixed field changes apply atomically.
+- Existing unmasked/per-key behavior is retained where supported; no new request field or implied-mask convention is introduced.
 
 #### TC-IS1-03: Networking metadata reuses supported private Update behavior
 
@@ -120,24 +124,23 @@ An administrator owns a private object with two ordinary and two reserved entrie
 
 ##### Preconditions
 
-Fixtures cover NetworkClass, VirtualNetwork, Subnet, SecurityGroup, ExternalIPPool, ExternalIP, ExternalIPAttachment, and NATGateway in valid stored states. Record each existing private service's allowed ordinary metadata operations and immutable-field checks before adding the feature. Identify any type requiring a reserved-only validation mode.
+Fixtures cover NetworkClass, VirtualNetwork, Subnet, SecurityGroup, ExternalIPPool, ExternalIP, ExternalIPAttachment, and NATGateway in valid stored states. Record existing metadata operations, operational/default-label checks, and immutable-field restrictions.
 
 ##### Steps
 
-1. For both administrators, set, change, and clear reserved entries through each existing private Update service using exact key-mask targets.
-2. Where ordinary metadata editing is already supported, exercise legacy map updates and mixed ordinary/reserved key edits permitted by that service's existing rules.
-3. Attempt changes to fields rejected by each service's recorded baseline, such as Subnet CIDR or VirtualNetwork NetworkClass, together with a reserved edit; inspect the full object and version after rejection.
-4. For types needing the new reserved-only mode, submit a nonempty reserved-key mask without an ordinary mask, then attempt an ordinary-map or other nonreserved change in that mode.
-5. Verify public Update remains absent and existing controller status operations retain their behavior.
+1. For both admins, set, change, and remove reserved entries on all eight services using fetched replacement maps, existing map-level masks, version, and lock=true.
+2. Exercise supported ordinary and mixed ordinary/reserved map edits, retaining untouched operational labels. ExternalIP, ExternalIPAttachment, and NATGateway use a nonempty ordinary mask.
+3. Attempt each recorded forbidden field/default-label change together with a reserved edit. Also omit the mandatory mask on the three lifecycle services.
+4. Verify public Update remains absent and existing controller status operations retain their behavior.
 
 ##### Expected Results
 
-- Reserved set/change/clear succeeds for both admins on all eight types without a new provisioning cycle or unrelated provider-readiness checks.
-- Already-supported ordinary metadata operations continue to succeed; allowed mixed edits apply atomically. The feature does not impose a new ordinary-metadata ban on these services.
-- Existing immutable-field errors remain errors and save no subset of the mixed request. In a newly required reserved-only mode, nonreserved changes return InvalidArgument and leave the object/version unchanged.
-- Public networking Update is not introduced, and existing controller status operations remain supported.
+- All eight private services accept the required reserved metadata edits for both admins under their resource rules; editing metadata needs no new reserved-only mode.
+- Supported ordinary and mixed map updates remain supported. Unselected spec/status and lifecycle state remain unchanged.
+- Forbidden field/default-label changes and missing mandatory masks retain their existing errors; no subset or version change is saved.
+- Public networking Update is not introduced; existing controller status operations remain supported.
 
-#### TC-IS1-04: REST query key masks survive gateway canonicalization
+#### TC-IS1-04: REST uses existing whole-map PATCH masks
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -147,20 +150,21 @@ Fixtures cover NetworkClass, VirtualNetwork, Subnet, SecurityGroup, ExternalIPPo
 
 ##### Preconditions
 
-A mutable private object has known labels/annotations and version; the updated gateway and custom query parser are deployed.
+A mutable private object has multiple entries in both maps and a known version. Use the existing generated gateway and default query parser.
 
 ##### Steps
 
-1. PATCH with an encoded slash in metadata_update_mask.labels and a body supplying its new value, without an explicit ordinary update_mask query parameter.
-2. PATCH again with the same query target and a body containing only metadata.version to clear it.
-3. Send a disjoint explicit ordinary update_mask, then an overlapping metadata.labels mask. Repeat for annotation targets.
+1. PATCH an edited labels map containing qualified keys and version, first with update_mask=metadata.labels and lock=true, then without an explicit mask to exercise the body-derived mask.
+2. With an explicit labels mask, send an empty map, then an omitted map, to clear labels. Repeat for annotations and for both selected maps.
+3. Compare REST results with native gRPC map-level requests and verify unselected maps/fields through private reads.
 
 ##### Expected Results
 
-- The typed target is decoded exactly; the gateway body-derived ordinary mask is cleared only when the helper is present and no explicit ordinary mask was supplied.
-- Set and clear have the same behavior as native gRPC. Explicit disjoint masks remain effective; overlap returns InvalidArgument without changing either field or version.
+- Qualified keys remain map entries and reach the service unchanged; body-derived masks select complete maps, not per-key paths.
+- Administrator replacement/clearing agrees with native gRPC. Explicit masks retain selection; unselected fields remain intact. Version locking rejects stale input.
+- No custom query parser or additional mask representation is required. Tenant map preservation is checked separately by TC-IS4-01.
 
-#### TC-IS1-05: CLI private metadata operations retain all explicit targets
+#### TC-IS1-05: CLI private metadata operations submit complete selected maps
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -170,18 +174,19 @@ A mutable private object has known labels/annotations and version; the updated g
 
 ##### Preconditions
 
-The updated CLI advertises supported metadata editing, has private administrator credentials, and can resolve every inventory type through its existing names/aliases.
+The updated CLI has private administrator credentials, sees namespace enforcement capabilities, and resolves all inventory types through existing names/aliases.
 
 ##### Steps
 
-1. For both administrators and every type, run label and annotate to set, change, and remove a reserved key using the existing key=value and key- forms.
-2. Submit multiple targets in one command, including an empty value and removal of an already-absent key.
-3. Read the object in structured and human-readable output; inspect the outgoing typed mask in a protocol unit test.
+1. For both admins and all types, label/annotate a fetched private map using key=value and key- to set, change, and remove reserved entries.
+2. Combine several edits, including an empty value and removal of an already-absent key; include untouched ordinary/reserved entries in the fixture.
+3. Inspect protocol-unit requests and structured/human output after the deployed command.
 
 ##### Expected Results
 
-- The CLI sends exact map-specific targets, retains absent removal intent, and reports success on supported private services.
-- Reads show the administrator values. Untargeted fields remain unchanged and version locking is requested. Unsupported aliases are caught by the registry coverage check rather than silently omitted.
+- The request contains the complete edited selected map, its existing map-level update_mask, the fetched version, and lock=true.
+- Untouched map entries and unrelated fields remain intact; key- deletes by omission and an empty string remains a value. Authorized absent-key removal is a no-op.
+- Private reads show reserved values; both personas have identical coverage. Alias/registry completeness failures cannot silently omit a type.
 
 #### TC-IS1-06: Console registry and editor cover all persistent types for both admins
 
@@ -197,16 +202,17 @@ Both administrators can sign in to the deployed console. Valid fixtures exist fo
 
 ##### Steps
 
-1. Open /admin/metadata with each persona and enumerate every inventory type, including private-only types and types without a dedicated detail page.
-2. For every type, load an object and use both map editors to add, change, and remove a reserved key.
-3. Follow metadata-editor links from existing detail pages and reload changed objects through the API.
+1. Open /admin/metadata with each persona and enumerate every type, including private-only types and types without a dedicated detail page.
+2. For each type, use both map editors to add, change, and remove a reserved entry while retaining untouched ordinary/reserved entries.
+3. Inspect Connect/proxy request forwarding of full selected maps, the existing mask, and lock=true; follow detail-page links and reload through the API.
 
 ##### Expected Results
 
-- Both personas have identical resource and action coverage. Registry completeness is enforced against the explicit inventory.
-- Editors preserve separate map targets, display stored private values, and persist successful changes through Connect/proxy/API. Existing detail-page links reach the same editor.
+- Both personas have identical resource/action coverage; registry completeness is checked against all 35 types.
+- Editors display complete private maps and submit their edited replacements with version locking. Untouched entries and unselected maps/fields remain intact.
+- Connect/proxy/API persistence and existing detail-page links reach the same shared editor.
 
-#### TC-IS1-07: Clients require metadata capabilities before exact-key writes
+#### TC-IS1-07: Clients establish namespace enforcement before reserved writes
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -216,19 +222,19 @@ Both administrators can sign in to the deployed console. Valid fixtures exist fo
 
 ##### Preconditions
 
-Use new-server, capability-absent old-server, and unsupported-capability transport fixtures. Record every write invocation.
+Use new-server, capability-absent old-server, and wrong-prefix fixtures. The legacy server accepts ordinary Update shapes without privacy enforcement; record every Create/Update invocation.
 
 ##### Steps
 
-1. Read Capabilities.Get from the new server and verify the metadata reserved_prefix and supports_key_masks fields.
-2. Attempt reserved metadata writes from updated CLI and console with capability absent or unsupported, including a native gRPC client preflight.
-3. Perform an ordinary legacy operation against the older-server fixture.
+1. Read Capabilities.Get from the new server and verify metadata.reserved_prefix.
+2. Attempt reserved Create/Update from updated CLI/console against absent or mismatched capabilities; cover native gRPC preflight.
+3. Perform an ordinary operation against the older-server fixture and attempt an unauthorized reserved write against the supported server.
 
 ##### Expected Results
 
-- The new server advertises admin.osac.openshift.io/ and key-mask support; support advertisement conveys no identity authority.
-- Updated clients prevent reserved/key-mask writes before sending Update to an unsupported server, show a clear compatibility error, and never downgrade the reserved operation to a broad replacement.
-- Existing ordinary older-server flows retain their legacy request representation.
+- The new server advertises admin.osac.openshift.io/ as an enforced namespace, independently of caller authority.
+- Updated clients send no reserved Create/Update to an unsupported server and show a clear compatibility error; accepting whole-map requests alone is not privacy support.
+- Ordinary older-server flows remain supported. Capabilities do not grant reserved access; unauthorized input still fails.
 
 #### TC-IS1-08: Administrator authority comes from the evaluated OPA decision
 
@@ -254,7 +260,7 @@ Accounts represent both administrators, Tenant Admin, Tenant User, and the restr
 - Tenant roles and CSI universal-tenant visibility do not become administrator authority. Public administrator calls still receive the tenant metadata projection.
 - Private RPC access continues to require the existing method/object authorization independently of metadata projection.
 
-#### TC-IS1-09: Version locking protects administrator edits
+#### TC-IS1-09: Version locking protects administrator replacement maps
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -264,18 +270,19 @@ Accounts represent both administrators, Tenant Admin, Tenant User, and the restr
 
 ##### Preconditions
 
-An administrator reads version v; a second authorized update advances the same object to v+1.
+An administrator reads a complete map at version v; a second authorized update changes an otherwise untouched entry and advances the row to v+1.
 
 ##### Steps
 
-1. Submit a typed-mask edit with metadata.version=v and lock=true through gRPC, REST, CLI, and Connect.
-2. Read the private object after each rejection.
-3. Reload its new version and resubmit the intended edit.
+1. Submit the edited stale map with its ordinary map-level mask, metadata.version=v, and lock=true through gRPC, REST, CLI, and Connect.
+2. Read the complete private object after each rejection and inspect CLI/editor state.
+3. Reload the full current map/version, retain the concurrent entry, and resubmit the intended edit.
 
 ##### Expected Results
 
-- Every stale operation returns Aborted, commits no changes, and leaves the current version intact.
-- CLI reports failure; the editor retains the unsaved edit and requires reload/resubmission. A fresh-version operation succeeds once.
+- Every stale operation returns Aborted, changes nothing, and retains the concurrent entry/current version.
+- CLI reports failure; the editor retains unsaved edits and requires reload/resubmission. It does not automatically replay a stale complete map.
+- A fresh-version replacement succeeds without losing the other administrator entry.
 
 ### IS-2: Tenant visibility
 
@@ -468,30 +475,31 @@ A tenant-visible object has ordinary metadata and stored reserved entries; take 
 - All attempts return PermissionDenied based on raw supplied protected input, including unchanged values and entries outside the ordinary mask.
 - The entire stored object and version equal the pre-request snapshot; no ordinary subset is committed.
 
-#### TC-IS3-03: Explicit reserved clear is denied even when the key is absent
+#### TC-IS3-03: Named reserved removals fail in clients before map construction
 
 | Interface Change | Priority | Automation |
 |---|---|---|
-| IC-3, IC-4 | critical | automated |
+| IC-4, IC-8, IC-9 | critical | automated |
 
-**Tier:** Input unit; deployed Fulfillment
+**Tier:** CLI/UI unit; deployed CLI
 
 ##### Preconditions
 
-Prepare otherwise identical objects with a reserved key present and absent. Both tenant personas can edit ordinary metadata.
+Tenant clients see only ordinary maps. Prepare present/absent reserved-key fixtures, an authorized private snapshot, and a counter for outgoing Update calls.
 
 ##### Steps
 
-1. Submit metadata_update_mask naming the reserved key while omitting its value, together with a disjoint ordinary edit.
-2. Repeat with the key present, absent, and in each map.
-3. Compare errors and private stored snapshots.
+1. Attempt a reserved key- removal in label and annotate, and inject a named removal into the console operation validator.
+2. Repeat for both maps, with the reserved key present/absent, and with an ordinary edit in the same operation.
+3. Inspect local errors, Update invocation counts, retained editor state, and the full private stored object.
 
 ##### Expected Results
 
-- All requests return PermissionDenied with equivalent error semantics independent of key existence.
-- Absence of a visible/stored key never turns explicit removal into success or a silent no-op. Ordinary edits and versions remain unchanged.
+- The client reports the reserved-operation permission error before discarding its target or constructing an Update map, regardless of stored existence.
+- No Update is sent, no ordinary subset/version change is saved, and console edits remain available for correction.
+- This local check supplies the named-removal error; server omission preservation is covered by TC-IS4-01.
 
-#### TC-IS3-04: Legacy explicit mask intent cannot bypass protected targets
+#### TC-IS3-04: Existing explicit mask paths cannot bypass protected targets
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -501,18 +509,19 @@ Prepare otherwise identical objects with a reserved key present and absent. Both
 
 ##### Preconditions
 
-Legacy clients use ordinary update_mask without the helper. Capture the private pre-request snapshot.
+Existing clients use ordinary update_mask; capture complete private snapshots for otherwise identical objects with a reserved key present and absent.
 
 ##### Steps
 
-1. Exercise any legacy mask syntax accepted by the server that explicitly identifies a reserved key, including direct gRPC paths.
+1. Exercise any existing mask syntax the server accepts that explicitly identifies a reserved key, including native gRPC paths, with its value omitted.
 2. Submit REST/Connect encodings with invalid quoted/slash-containing FieldMask forms.
-3. Submit a valid ordinary map replacement omitting hidden keys as a separate compatibility control.
+3. Submit a valid ordinary whole-map replacement omitting hidden keys as a separate control.
 
 ##### Expected Results
 
-- Accepted explicit protected targets are denied before mutation; malformed protobuf/FieldMask encodings return InvalidArgument during validation/decoding with no stored change.
-- A decoding error is not evidence of successful protected-target authorization. The valid omission control preserves hidden entries under the documented legacy semantics.
+- Accepted explicit protected paths return PermissionDenied before mutation, regardless of key existence; ordinary changes and versions remain unchanged.
+- Malformed encodings retain their validation/decoding errors with no mutation; such errors are not evidence of protected-target authorization.
+- The valid omission control succeeds for ordinary edits and preserves hidden entries. No new qualified per-key grammar is added.
 
 #### TC-IS3-05: CLI mixed forbidden operations fail without partial success
 
@@ -524,20 +533,20 @@ Legacy clients use ordinary update_mask without the helper. Capture the private 
 
 ##### Preconditions
 
-Tenant CLI credentials can edit ordinary metadata; reserved entries are hidden by Get. Capture the full stored object and version.
+Tenant CLI credentials can edit ordinary metadata; reserved entries are hidden by Get. Capture the full object/version and record Update invocations.
 
 ##### Steps
 
-1. Run label with an ordinary set plus a reserved key- removal; repeat for annotate and for an absent reserved key.
-2. Run a mixed ordinary and reserved set operation.
-3. Inspect CLI exit status, stderr, outgoing mask targets, and the private stored object.
+1. Run label with an ordinary set plus reserved key- removal; repeat for annotate and an absent reserved key.
+2. Run a mixed ordinary/reserved set command, including a reserved entry with an unchanged value.
+3. Inspect exit status, stderr, Update invocation count, and the complete private stored object.
 
 ##### Expected Results
 
-- Every command exits nonzero and reports the permission failure; the reserved removal target remains in the request despite being absent from the fetched public object.
-- No requested ordinary change or version increment persists. The CLI does not report a forbidden absent-key removal as a successful no-op.
+- Every command exits nonzero with a clear permission error and sends no Update; the target is checked before local deletion could erase it.
+- Neither ordinary changes nor version advancement persists. A forbidden absent-key removal is not reported as success.
 
-#### TC-IS3-06: REST and Connect report atomic failure and preserve editor state
+#### TC-IS3-06: REST and Connect enforce input rejection and omission preservation
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -547,41 +556,19 @@ Tenant CLI credentials can edit ordinary metadata; reserved entries are hidden b
 
 ##### Preconditions
 
-A tenant mutation fixture has pending ordinary edits and an explicitly injected protected target; keep a full private stored snapshot.
+A tenant has pending ordinary edits and an object with reserved entries. Capture its full private snapshot; UI unit fixtures can inject a named forbidden operation.
 
 ##### Steps
 
-1. Send mixed forbidden requests through REST and Connect/proxy, including set and clear targets.
-2. Drive the editor mutation/error component with the resulting permission error, including a request crafted outside normal tenant controls.
-3. Reload through an authorized private read and inspect the unsaved form.
+1. Send mixed ordinary/reserved map entries through REST and Connect/proxy, including requests crafted outside normal tenant controls.
+2. Drive the editor error component with the returned server error; separately inject a named reserved removal and inspect the local client rejection.
+3. Submit a tenant replacement containing only ordinary entries, omitting reserved entries, then read the full private object.
 
 ##### Expected Results
 
-- REST and Connect propagate PermissionDenied using their established transport mappings; neither strips the protected target and retries an ordinary subset.
-- The database and version are unchanged. The editor displays a clear failure and retains the unsaved ordinary edits for correction. Server enforcement does not depend on whether a tenant control was rendered.
-
-#### TC-IS3-07: Invalid helper and overlapping masks fail before persistence
-
-| Interface Change | Priority | Automation |
-|---|---|---|
-| IC-3, IC-4 | high | automated |
-
-**Tier:** Mask/candidate unit; component integration
-
-##### Preconditions
-
-An authorized administrator can update the target mutable object; capture a private snapshot.
-
-##### Steps
-
-1. Submit a present-but-empty helper, duplicate targets in one map, and invalid keys.
-2. Submit a helper plus ordinary update_mask covering metadata, the same map, or a descendant of the selected map.
-3. Repeat with labels and annotations, and compare a disjoint-map request as a valid control.
-
-##### Expected Results
-
-- Invalid helper syntax and mask overlap return InvalidArgument; object, version, and side effects are unchanged.
-- The valid disjoint-map control updates only its selected targets and ordinary mask. The same key string in different maps is treated as two map-specific targets, not an invalid duplicate across maps.
+- Supplied reserved entries cause PermissionDenied with existing transport mappings and no object/version/side-effect changes. Neither transport strips them and retries the ordinary subset.
+- The editor retains unsaved changes after server/local permission failures; a locally named forbidden removal sends no Update.
+- Ordinary replacement succeeds and keeps stored reserved entries. Omission is not an explicit-removal request and does not produce a server permission error.
 
 #### TC-IS3-08: Rejected requests and returned handler errors roll back transactions
 
@@ -609,7 +596,7 @@ A real PostgreSQL test transaction can observe candidate/object writes and auxil
 
 ### IS-4: Ordinary metadata compatibility
 
-#### TC-IS4-01: Legacy map replacement retains hidden stored entries
+#### TC-IS4-01: Every tenant replacement preserves stored reserved entries
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -619,18 +606,21 @@ A real PostgreSQL test transaction can observe candidate/object writes and auxil
 
 ##### Preconditions
 
-A tenant-visible mutable object contains ordinary and reserved entries in both maps. Snapshot the full private object.
+A tenant-visible mutable object contains multiple ordinary/reserved entries in both maps. Capture the complete private object and its version.
 
 ##### Steps
 
-1. Replace metadata.labels, metadata.annotations, and metadata through the existing ordinary mask forms; include the legacy no-mask update path.
-2. Clear ordinary keys by omission using each accepted legacy representation.
-3. Read the private object and compare ordinary replacement results with the existing baseline.
+1. Replace metadata.labels, metadata.annotations, and parent metadata with existing accepted masks, and exercise the existing no-mask path where supported.
+2. Send ordinary edits, empty selected maps, and omitted selected maps; verify an unselected map remains unchanged.
+3. Run an older CLI fixture that deletes an unseen reserved key locally before submitting its ordinary map, including a mixed ordinary change.
+4. Compare complete private maps/versions with the baseline ordinary replacement behavior.
 
 ##### Expected Results
 
-- Every successful ordinary update retains the protected portion from the locked current stored row.
-- Ordinary set/replacement/clear behavior and version advancement remain consistent with existing semantics; missing hidden entries in a tenant payload are not treated as explicit deletion intent.
+- Every successful tenant update restores all reserved entries from the locked current row, including parent-map and unmasked replacements.
+- Ordinary omitted keys are removed as before; empty/omitted selected maps clear only ordinary entries. Unselected maps remain intact.
+- The older client receives success for the valid ordinary request and reports no local reserved-removal error; stored reserved entries remain unchanged. The server does not infer an explicit removal from omission.
+- Raw reserved entries still fail atomically under TC-IS3-02; merging does not silently accept a supplied forbidden key.
 
 #### TC-IS4-02: Prefix boundary and operational metadata remain ordinary
 
@@ -656,7 +646,7 @@ Use valid ordinary keys including osac.openshift.io/tenant and osac.openshift.io
 - Operational isolation/lifecycle keys are not reclassified as reserved. Existing validation and resource-specific ownership restrictions still apply to ordinary keys.
 - Invalid keys fail under the existing syntax contract; this feature adds no broader acceptance.
 
-#### TC-IS4-03: Concurrent tenant updates preserve the latest hidden metadata
+#### TC-IS4-03: Concurrent tenant updates preserve the latest reserved metadata
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -666,19 +656,19 @@ Use valid ordinary keys including osac.openshift.io/tenant and osac.openshift.io
 
 ##### Preconditions
 
-The tenant reads version v; an administrator changes a reserved entry and advances the row before the tenant submits its ordinary update.
+A tenant reads its visible maps/version v; an administrator adds, changes, or removes a reserved entry and commits before the tenant Update acquires the row.
 
 ##### Steps
 
-1. Submit the stale ordinary tenant update with lock=true and inspect the row.
-2. Repeat with the API legacy unlocked-update path where supported, controlling row acquisition order in the integration fixture.
-3. Inspect both ordinary changes and the latest reserved values using an authorized private read.
+1. Submit the stale ordinary replacement with its map-level mask and lock=true; inspect the row.
+2. Repeat with the existing unlocked path where supported, controlling row-acquisition order. Include empty map, parent-metadata, and unmasked forms.
+3. Compare ordinary edits and the complete latest reserved portion through an authorized private read.
 
 ##### Expected Results
 
-- The locked stale request returns Aborted and changes nothing.
-- The allowed unlocked ordinary update preserves the latest protected entries from the row read under lock, rather than restoring the tenant snapshot or an earlier administrator value.
-- Concurrent requests never lose a committed reserved change through public-map replacement.
+- The stale locked request returns Aborted and changes nothing.
+- An allowed unlocked update retains exactly the latest reserved portion from the locked stored row: additions and new values survive, and an administrator removal is not resurrected.
+- Ordinary replacement/deletion retains its baseline behavior; tenant snapshots or pre-lock reads are never the source of restored reserved entries.
 
 #### TC-IS4-04: Ordinary filtering, totals, and watches retain existing behavior
 
@@ -703,7 +693,7 @@ Objects have ordinary match/nonmatch metadata and hidden reserved entries; exist
 - Ordinary literal-key results, counts, and watch membership match the existing baseline; SQL keeps the indexed literal-key path.
 - Whole-map predicates observe the documented visible projection. Reserved-only changes do not alter an ordinary predicate result or expose a protected entry.
 
-#### TC-IS4-05: Ordinary clients and existing service mutation boundaries remain compatible
+#### TC-IS4-05: Ordinary clients and service mutation boundaries remain compatible
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -713,21 +703,20 @@ Objects have ordinary match/nonmatch metadata and hidden reserved entries; exist
 
 ##### Preconditions
 
-Use an older ordinary CLI fixture against the new server, updated clients against a legacy support fixture, existing ordinary console controls, and public networking services. Include private networking fixtures with a recorded baseline of ordinary label/annotation edits that their existing services permit.
+Use older ordinary CLI fixtures, updated clients against legacy server fixtures, existing ordinary console controls, public networking services, and private networking fixtures with recorded allowed metadata operations.
 
 ##### Steps
 
-1. Perform established ordinary label/annotation operations through each supported legacy client path.
-2. Repeat ordinary console edits on mutable public resources and inspect projected responses.
-3. Attempt public networking Update through the existing service boundary and compare the baseline failure.
-4. Replay the recorded supported private networking metadata operations using legacy masks and replacement requests; compare ordinary entries and hidden reserved entries through an authorized private read.
+1. Perform established ordinary label/annotation operations through supported older/new clients; inspect the new clients' existing map masks and lock fields.
+2. Repeat ordinary console editing on mutable public resources and inspect filtered responses.
+3. Attempt public networking Update and compare the existing absence/Unimplemented boundary.
+4. Replay supported private networking metadata updates with existing masks and full-map requests, retaining system/default labels.
 
 ##### Expected Results
 
-- Existing ordinary supported operations retain their behavior and do not require reserved edit affordances.
-- Hidden entries survive ordinary updates on the new server. Public networking Update remains absent/Unimplemented under the existing service contract.
-- Capabilities neither grant authorization nor broaden mutability.
-- Existing supported private networking metadata edits retain their behavior, while unprivileged map replacements preserve hidden reserved entries. Existing operational-label and immutable-field restrictions remain enforced.
+- Supported ordinary operations remain available; updated clients select only edited maps and use version locking without replacing unrelated fields.
+- The new server preserves reserved entries on tenant updates. Ordinary older-server operations remain supported, and capabilities do not grant permissions.
+- Public networking Update remains absent. Existing private networking metadata, operational-label, immutable-field, and lifecycle-mask rules remain enforced.
 
 ### IS-5: Prefix and behavior documentation
 
@@ -753,7 +742,7 @@ API reference, administrator guide, and tenant guide drafts accompany the implem
 - Every guide names admin.osac.openshift.io/ exactly and explains case-sensitive prefix matching without inheritance or configurable variants.
 - Examples agree with executable contract cases and preserve the distinction between reserved matching and existing syntax validation.
 
-#### TC-IS5-02: Documentation covers persona parity, transports, errors, and compatibility
+#### TC-IS5-02: Documentation covers personas, map semantics, errors, and compatibility
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -767,20 +756,20 @@ Guide examples, CLI help, and API schema are available for the proposed implemen
 
 ##### Steps
 
-1. Review both admin persona journeys and both tenant persona expectations across API, CLI, and console.
-2. Check gRPC, encoded REST query, and Connect set/clear examples; verify capability preflight, stale-version handling, and whole-request rejection instructions.
-3. Check the all-resource inventory, ordinary-map preservation explanation, and absence of an in-place upgrade promise.
+1. Review both admin journeys and both tenant expectations across API, CLI, and console.
+2. Check native gRPC, existing REST PATCH/query masks, and Connect examples for complete selected maps, omission-based deletion, empty maps/values, capability preflight, and stale versions.
+3. Check the all-resource inventory, local named-removal error, raw-input server rejection, tenant omission preservation, and older-client/server limitations.
 
 ##### Expected Results
 
-- Documentation describes identical admin actions on every metadata-bearing persistent type and clearly states tenant omission and atomic denial.
-- Examples use the reviewed generic key-mask contract, include explicit removal intent and version handling, and do not recommend legacy fallback for a reserved write.
-- Support guidance explains permission/compatibility/concurrency failures without logging protected values.
+- Guides describe identical admin actions on all persistent types and private-only types, tenant privacy, and whole-request rejection for observable forbidden input.
+- Examples use existing Update maps/masks/lock; administrator omission deletes while tenant omission preserves. Named CLI/console removal is checked before sending a map, and discarded targets cannot be inferred by the server.
+- Support guidance requires namespace enforcement before reserved writes, documents older-client limitations, excludes in-place upgrades, and logs no protected values.
 
 ## Coverage summary and remaining work
 
-- **30 cases:** 19 critical, 9 high, 2 medium, 0 low.
-- **Automation:** 28 planned automated cases and two manual documentation cases. A case spanning tiers requires evidence at every listed relevant boundary.
+- **29 cases:** 19 critical, 8 high, 2 medium, 0 low.
+- **Automation:** 27 planned automated cases and two manual documentation cases. A case spanning tiers requires evidence at every listed relevant boundary.
 - **Requirement coverage:** 5/5 local In Scope anchors mapped; no PRD scope bullet is omitted.
 - **Interface coverage:** 11/11 design interface IDs mapped. The table below provides an independent index.
 
@@ -788,13 +777,13 @@ Guide examples, CLI help, and API schema are available for the proposed implemen
 |---|---|
 | IC-1 | TC-IS1-01, TC-IS1-02, TC-IS2-01, TC-IS2-06, TC-IS3-01, TC-IS4-02, TC-IS5-01 |
 | IC-2 | TC-IS1-01, TC-IS1-03, TC-IS1-05, TC-IS1-06, TC-IS2-01, TC-IS4-05 |
-| IC-3 | TC-IS1-02, TC-IS1-03, TC-IS1-04, TC-IS1-05, TC-IS1-09, TC-IS3-02, TC-IS3-03, TC-IS3-04, TC-IS3-06, TC-IS3-07, TC-IS4-01, TC-IS4-03 |
-| IC-4 | TC-IS3-01, TC-IS3-02, TC-IS3-03, TC-IS3-04, TC-IS3-05, TC-IS3-06, TC-IS3-07, TC-IS3-08, TC-IS4-01, TC-IS4-03 |
+| IC-3 | TC-IS1-02, TC-IS1-03, TC-IS1-04, TC-IS1-05, TC-IS1-09, TC-IS3-02, TC-IS3-04, TC-IS3-06, TC-IS4-01, TC-IS4-03 |
+| IC-4 | TC-IS3-01, TC-IS3-02, TC-IS3-03, TC-IS3-04, TC-IS3-05, TC-IS3-06, TC-IS3-08, TC-IS4-01, TC-IS4-03 |
 | IC-5 | TC-IS2-01, TC-IS2-02, TC-IS2-04, TC-IS2-05, TC-IS2-06, TC-IS4-02, TC-IS4-04 |
 | IC-6 | TC-IS2-02, TC-IS2-03, TC-IS4-04 |
 | IC-7 | TC-IS1-01, TC-IS1-06, TC-IS1-08, TC-IS2-05, TC-IS3-01, TC-IS3-02 |
-| IC-8 | TC-IS1-05, TC-IS1-07, TC-IS1-09, TC-IS2-04, TC-IS3-05, TC-IS4-05 |
-| IC-9 | TC-IS1-06, TC-IS1-07, TC-IS1-09, TC-IS2-04, TC-IS3-06, TC-IS4-05 |
+| IC-8 | TC-IS1-05, TC-IS1-07, TC-IS1-09, TC-IS2-04, TC-IS3-03, TC-IS3-05, TC-IS4-05 |
+| IC-9 | TC-IS1-06, TC-IS1-07, TC-IS1-09, TC-IS2-04, TC-IS3-03, TC-IS3-06, TC-IS4-05 |
 | IC-10 | TC-IS5-01, TC-IS5-02 |
 | IC-11 | TC-IS1-07, TC-IS4-05, TC-IS5-02 |
 
@@ -805,8 +794,8 @@ Guide examples, CLI help, and API schema are available for the proposed implemen
 | G-1 | QE with console maintainers: establish a maintained browser runner, correct discovery/configuration, add deployed metadata journeys, and document the execution command | TC-IS1-06, TC-IS2-04, TC-IS3-06; browser portions of stale/error cases | Work belongs to OSAC-6204; no separate follow-up ticket has been created. Close with committed suite/runner, reproducible command, deployed four-persona results, and saved failure artifacts. |
 | G-2 | Fulfillment DEV with QE: create valid inventory fixtures and deployed identity credentials/seed setup for all 35 persistent types, both maps, both admins, both tenants, and restricted CSI identity | TC-IS1-01, TC-IS1-03, TC-IS1-05, TC-IS1-08, TC-IS2-01, TC-IS2-05, TC-IS3-01 and exhaustive regression matrix | Work belongs to OSAC-6204; no separate follow-up ticket has been created. Close with executable fixtures, explicit seeded lifecycle states, inventory completeness assertions, and real deployed transport/auth evidence. |
 
-The generic Update representation and per-type networking validation work remain owned review items in the design. Question 2 determines which networking types need a reserved-only mode; TC-IS1-03 and TC-IS4-05 require preserving supported existing metadata updates. Once resolved, update the affected examples, cases, and generated-client expectations together. These are delivery prerequisites, not a reason to reduce the all-resource or interface-parity scope.
+The networking contract question reconciles the accepted metadata-immutability document with existing private metadata updates and required administrator access. TC-IS1-03 and TC-IS4-05 verify those updates with current masks and resource validation. Close any fixture-discovered mismatch without removing supported ordinary operations or adding public Update. G-1/G-2 remain delivery prerequisites for the full resource/interface scope.
 
 ### Acceptance evidence
 
-Completion requires real results for the exhaustive inventory and required boundary suites, not only a case count or mocked success. Record the executed command/cwd, commit, suite/tier, account setup, real dependencies and doubles, result artifacts, and any remaining gap with its owner. Reserved requests must leave the complete object/version and side effects unchanged; tenant response/filter evidence must contain no protected values. Both administrators must demonstrate the same API, CLI, and deployed console actions. Ordinary compatibility cases and the documentation reviews must pass before milestone graduation.
+Completion requires real results for the exhaustive inventory and required boundary suites, not only a case count or mocked success. Record the executed command/cwd, commit, suite/tier, account setup, real dependencies and doubles, result artifacts, and any remaining gap with its owner. Rejected reserved requests must leave the complete object/version and side effects unchanged; tenant response/filter evidence must contain no protected values. Both administrators must demonstrate the same API, CLI, and deployed console actions. Ordinary compatibility cases and the documentation reviews must pass before milestone graduation.

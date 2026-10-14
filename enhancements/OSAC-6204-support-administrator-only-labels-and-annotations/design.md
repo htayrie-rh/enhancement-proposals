@@ -18,19 +18,19 @@ superseded-by: []
 
 ## Summary
 
-OSAC reserves `admin.osac.openshift.io/` for metadata that administrators manage through the private API, CLI, and console. The server hides these entries from tenants and rejects tenant changes, using existing metadata maps and an added mask for exact key edits. See [PRD](prd.md) for detailed requirements.
+OSAC reserves `admin.osac.openshift.io/` for metadata that administrators manage through the private API, CLI, and console. Existing whole-map updates replace administrator maps and preserve stored reserved entries in tenant maps. See [PRD](prd.md) for detailed requirements.
 
 ## Motivation
 
 The public API currently returns all labels and annotations. Simply hiding reserved entries would create two update problems: replacing a tenant's visible map could delete hidden entries, and the CLI could silently ignore a forbidden removal because the fetched object does not contain the key. [Codebase: fulfillment-service/internal/servers/generic_mapper.go; fulfillment-service/internal/servers/generic_server.go; fulfillment-service/internal/cmd/cli/annotate/annotate_cmd.go]
 
-The server therefore needs explicit edit/removal targets and rules that preserve hidden entries. It must also protect event payloads and query results, including result counts. [Codebase: fulfillment-service/internal/servers/events_server.go; fulfillment-service/internal/database/dao/generic_dao_list.go]
+The server preserves reserved entries during tenant updates and rejects supplied reserved keys. CLI and console commands reject named forbidden removals before constructing the update map. The same privacy boundary covers event payloads and query results, including result counts. [Codebase: fulfillment-service/internal/servers/events_server.go; fulfillment-service/internal/database/dao/generic_dao_list.go] [User]
 
 ### Goals
 
 - Keep existing metadata maps, database columns, versions, and events.
 - Apply one reserved-key rule to API requests, responses, events, and filters.
-- Support exact edits and removals through the API, CLI, and console.
+- Reuse existing Update requests, field masks, and version locking across the API, CLI, and console.
 - Preserve ordinary updates and use existing authorization and transactions.
 
 ### Non-Goals
@@ -43,7 +43,7 @@ The server therefore needs explicit edit/removal targets and rules that preserve
 
 Cloud Provider Admin and Cloud Infrastructure Admin have identical reserved-metadata permissions on every covered resource through the private API, CLI, and console. Tenant views omit reserved entries. A tenant request that names a reserved entry fails in full, including any ordinary changes in that request. [Locked: D3, D4, D5]
 
-The server checks writes before processing them and filters responses before returning them. Updates preserve hidden stored entries. Clients use an exact-key mask to distinguish a deliberate removal from an entry omitted because it was hidden. [Research: §2, §4]
+The server checks writes before processing them and filters responses before returning them. Tenant updates always retain reserved entries from the locked stored object. Authorized private administrators replace selected maps, including deletion by omission. Clients use the existing `update_mask` to select maps; no new per-key mask is added. [Locked: D6] [User]
 
 ### Workflow Description
 
@@ -51,15 +51,15 @@ An administrator starts with private API access and an existing object:
 
 1. Select the object through private Get/List, `osac login --private`, or the console's administrator metadata page.
 2. Read its metadata and current version.
-3. Submit the keys to set or remove, the object identifier, and the version with `lock=true`.
+3. Edit a copy of the complete private map, retaining untouched entries. Submit that map, its existing `update_mask`, the object identifier, and the version with `lock=true`.
 4. The server checks permissions, locks the stored row, validates the proposed changes, and saves them in one transaction.
 5. Receive the full private object. If the version is stale, reload before retrying.
 
-Tenants continue editing ordinary metadata. Supplying a reserved entry or explicitly targeting one for removal returns `PermissionDenied` and saves nothing. Omitting a hidden entry during an ordinary map replacement preserves it. [Locked: D4]
+Tenants continue editing ordinary metadata. A supplied reserved entry or an accepted explicit reserved-key mask path returns `PermissionDenied` and saves nothing. Updated CLI/console controls reject a named reserved removal locally before sending any Update. Map omission always preserves hidden entries; it does not tell the server whether removal was intended. [Locked: D4, D6]
 
 ![Metadata update flow: authorization, protected-key rejection, validation, persistence, and full or filtered responses.](assets/metadata-update-flow.png)
 
-The diagram shows where an Update request can fail and which metadata view it returns. Early rejection prevents side effects; response filtering changes a copy, leaving stored metadata intact.
+The diagram shows how the server applies an existing map update, preserves reserved entries for tenants, and chooses the response view. Client checks run before Update; early server rejection prevents side effects, and response filtering changes only a copy.
 
 ### API Extensions
 
@@ -69,15 +69,15 @@ The diagram shows where an Update request can fail and which metadata view it re
 |---|---|---|
 | IC-1 | Reserve an exact prefix in both metadata maps; retain existing key/value validation | IS-1, IS-2, IS-3, IS-4, IS-5 |
 | IC-2 | Administrator reads and writes across all 35 persistent private types; preserve supported metadata updates | IS-1, IS-2, IS-4 |
-| IC-3 | Add `metadata_update_mask` to Update requests for exact set/clear operations, with mask validation and version locking | IS-1, IS-3, IS-4 |
-| IC-4 | Reject forbidden Create/Update input with `PermissionDenied`; commit no changes | IS-3, IS-4 |
+| IC-3 | Reuse existing map replacement and `update_mask`; preserve tenant reserved entries from the locked row and use version locking | IS-1, IS-3, IS-4 |
+| IC-4 | Reject forbidden Create/Update input with `PermissionDenied`; reject named tenant operations in clients before Update; commit no changes | IS-3, IS-4 |
 | IC-5 | Filter public and unprivileged private responses, nested Metadata, and Events.Watch | IS-2, IS-4 |
 | IC-6 | Reject protected-key filters; evaluate other supported filters against visible metadata and return matching counts | IS-2, IS-4 |
 | IC-7 | Reuse platform-admin authority for both personas; retain tenant and restricted-client permissions | IS-1, IS-2, IS-3 |
 | IC-8 | Update CLI editing/output and server compatibility handling | IS-1, IS-2, IS-3, IS-4 |
 | IC-9 | Add the console metadata page/editor; protect tenant display/search and preserve edits after errors | IS-1, IS-2, IS-3, IS-4 |
 | IC-10 | Document the prefix, operations, errors, and API/CLI/console examples | IS-5 |
-| IC-11 | Advertise metadata support through Capabilities.Get | IS-1, IS-3, IS-4, IS-5 |
+| IC-11 | Advertise reserved-namespace enforcement through Capabilities.Get before clients submit reserved writes | IS-1, IS-3, IS-4, IS-5 |
 
 No CRDs, finalizers, webhooks, or AAP jobs change. Metadata edits use the API and database without waiting for provisioning controllers.
 
@@ -112,54 +112,45 @@ Each already defines private Update. Deployments still choose which services to 
 
 SelfSubjectAccessReview also carries Metadata, so its input and output follow the protection rules. It only evaluates a permission check and returns the result; it is not stored and gains no Get/List/Update/Delete methods. [Codebase: proto/private/osac/private/v1/*_type.proto; proto/private/osac/private/v1/*_service.proto]
 
-#### Editing individual metadata keys
+#### Creating objects with metadata
 
-Add this helper to every existing Update request at its next unused field number:
+Create uses the existing labels and annotations fields. Authorized private administrators may supply reserved entries alongside ordinary metadata. Public and non-admin private requests supplying a reserved entry fail before object creation or dependency processing; no ordinary subset is saved. Create has no stored map to merge. Existing resource validation and ownership rules still apply. [Locked: D4, D5]
+
+#### Updating metadata maps
+
+Keep the existing Update request:
 
 ```protobuf
-message MetadataUpdateMask {
-  repeated string labels = 1;
-  repeated string annotations = 2;
-}
-
-// Example Update request:
 message ComputeInstancesUpdateRequest {
   ComputeInstance object = 1;
   google.protobuf.FieldMask update_mask = 2;
   bool lock = 3;
-  MetadataUpdateMask metadata_update_mask = 4;
 }
 ```
 
-Generate the public form where Update exists; networking Update stays private. Exact string keys avoid the installed protobuf JSON codec's rejection of `/` and quoting in FieldMask paths. [Research: §2] [Codebase: fulfillment-service/go.mod; google.golang.org/protobuf/encoding/protojson/well_known_types.go]
+Clients select `metadata.labels`, `metadata.annotations`, or both with the existing mask. They send the complete intended contents of each selected map. Qualified keys remain ordinary map entries, avoiding per-key FieldMask encoding through REST and Connect. Supplied reserved input is rejected for unprivileged callers even when its map is excluded by the mask. [Codebase: fulfillment-service/internal/servers/generic_server.go]
 
-With the helper present:
+| Input selecting a metadata map | Tenant/public caller | Authorized private administrator |
+|---|---|---|
+| Ordinary entries only | Replace ordinary entries; restore stored reserved entries | Replace the entire selected map |
+| Reserved entry supplied | Reject the whole request, even if unchanged or outside the mask | Store it alongside the other supplied entries |
+| Empty or omitted selected map | Clear ordinary entries; retain reserved entries | Clear the selected map |
+| Map excluded by the mask | Leave it unchanged | Leave it unchanged |
 
-| Input | Result |
-|---|---|
-| Target key is present in its object map | Set that value; an empty string is a value |
-| Target key is absent from its object map | Remove it; an absent authorized key is a no-op |
-| Key is not targeted | Leave it unchanged |
-| Helper has no targets, duplicate targets within a map, or invalid keys | `InvalidArgument` |
+An empty string remains a value. Deleting an authorized key means omitting it from the submitted replacement map. Existing parent-metadata and unmasked updates keep their resource-specific behavior; all tenant forms restore reserved entries after applying the existing update semantics. Unmasked updates do not acquire a new implied mask. Existing accepted per-key paths remain supported, but unprivileged explicit reserved targets are denied. Invalid paths remain errors. [Locked: D6] [Codebase: fulfillment-service/internal/servers/generic_server.go]
 
-An ordinary `update_mask` may select other fields or the other map. It cannot select `metadata`, a map selected by the helper, or descendants of that map; overlap returns `InvalidArgument`. Without an ordinary mask, only the helper's targets change. Identifier and version remain control inputs.
+The client reads the complete map available to its API view, applies all requested edits locally, and sends only the selected maps plus identifier/version. Updated metadata clients use `lock=true`; a stale map fails with `Aborted` and must be reloaded before resubmission. The server restores tenant reserved entries from its latest locked row even for existing unlocked clients.
 
-Without the helper, existing ordinary update behavior continues. Tenant map, parent-metadata, and unmasked replacements retain reserved entries from the locked current row. Candidate preparation cannot change identity or ownership.
-
-Unprivileged requests reject every supplied reserved entry or explicit target, even if unchanged, absent, or outside the mask. Legacy explicit protected-key paths are also rejected; invalid paths remain errors.
-
-REST keeps `body: "object"` and carries helper targets in repeated query parameters. For example, this clears a label:
+REST keeps `body: "object"` and the generated gateway's existing body-derived mask. Explicit map-level query masks also work. For example, replacing labels with this map removes an omitted reserved key for a private administrator, while a tenant replacement retains it:
 
 ```text
-PATCH /api/private/v1/compute_instances/<id>?metadata_update_mask.labels=admin.osac.openshift.io%2Ftracking-id&lock=true
-Body: {"metadata":{"version":7}}
+PATCH /api/private/v1/compute_instances/<id>?update_mask=metadata.labels&lock=true
+Body: {"metadata":{"version":7,"labels":{"example.org/environment":"prod"}}}
 ```
 
-The gateway currently derives an ordinary mask from PATCH bodies. Add a QueryParameterParser wrapper: run DefaultQueryParser, then clear the derived mask when the helper is present and no explicit `update_mask` query parameter exists. Keep explicit masks and check overlap. Generated handlers remain generated. [Codebase: proto/gen/osac/private/v1/compute_instances_service.pb.gw.go; grpc-gateway/runtime/query.go]
+Sending an empty labels map with the same mask clears the map under the rules above. The explicit mask keeps version as a control input. No custom query parser is needed. Connect, the console's RPC transport, and native gRPC send the same maps in the full Update request with `update_mask.paths = ["metadata.labels"]` and `lock=true`. [Codebase: proto/gen/osac/private/v1/compute_instances_service.pb.gw.go]
 
-Connect and native gRPC use the full request: object ID, version 7, `lock=true`, and the same helper target, with the removed key absent from the map.
-
-Add `MetadataCapabilities metadata = 3` to CapabilitiesGetResponse, containing `reserved_prefix` (string) and `supports_key_masks` (bool). The new server advertises `admin.osac.openshift.io/` and `true`. Updated clients require this advertisement before sending helper masks; it grants no permission. [Codebase: proto/private/osac/private/v1/capabilities_service.proto]
+Add `MetadataCapabilities metadata = 3` to CapabilitiesGetResponse, with `string reserved_prefix = 1`. Advertise `admin.osac.openshift.io/` only when reserved-write protection and response/event/query privacy are implemented. Updated clients require the matching prefix before reserved Create/Update operations: older servers can accept these maps but expose their values. The advertisement grants no permission. [Codebase: proto/private/osac/private/v1/capabilities_service.proto]
 
 #### Permissions, validation, and response filtering
 
@@ -175,23 +166,25 @@ Existing method/object authorization still applies. Broad tenant visibility does
 
 Use a shared request/response interceptor after authorization and before automatic dependency creation or reference processing. It rejects protected input early, then removes reserved entries from a copy of each unprivileged response. Filtering covers nested public/private Metadata messages and streamed events, without touching unrelated maps. Internal objects remain complete. Events.Watch filters metadata before evaluating tenant event predicates. [Codebase: fulfillment-service/internal/cmd/service/start/grpcserver/start_grpc_server_cmd.go; fulfillment-service/internal/servers/events_server.go]
 
-GenericServer builds the proposed object (the candidate) from the locked current row and both masks, then validates it before saving. Public handlers forward both masks and `lock`. TxInterceptor calls `tx.ReportError(&err)` before ending the transaction, so a handler error rolls back earlier writes too. Use the existing transaction and row read. [Locked: D4] [Codebase: fulfillment-service/internal/servers/generic_server.go; fulfillment-service/internal/database/database_tx_interceptor.go]
+GenericServer reads the current row under its existing lock, checks the requested version, and applies the existing field mask or unmasked replacement. It then restores the stored reserved portion of both maps for unprivileged callers before candidate/resource validation and persistence. Raw-input rejection runs before this merge; restored entries are trusted stored data. Do not restore ordinary entries removed by the request or change identity/ownership. Public handlers keep forwarding the existing mask and `lock`. [Locked: D4, D6] [Codebase: fulfillment-service/internal/servers/generic_server.go]
+
+TxInterceptor calls `tx.ReportError(&err)` before ending the transaction, so a handler error rolls back earlier writes too. Use the existing transaction and row read. [Locked: D4] [Codebase: fulfillment-service/internal/database/database_tx_interceptor.go]
 
 For unprivileged List/watch filters, inspect the parsed, type-checked CEL expression. Explicit protected-key references—including membership checks and mixed predicates—return `PermissionDenied` before item/count queries, regardless of whether the key exists. Ordinary literal-key filters retain existing indexed SQL. Supported whole-map filters use JSONB with reserved entries excluded; unsupported operators keep their errors. Authorized private administrator filters use full metadata. [Research: §5] [Codebase: fulfillment-service/internal/database/dao/filter_translator.go]
 
 #### Editing networking metadata
 
-Reuse existing private Update methods for NetworkClass, VirtualNetwork, Subnet, SecurityGroup, ExternalIPPool, ExternalIP, ExternalIPAttachment, and NATGateway. Both administrators must be able to set, change, and remove reserved entries through the API, CLI, and console. Where those methods already support ordinary metadata updates, preserve them, including legacy requests and mixed ordinary/reserved edits allowed by existing rules. [Locked: D3, D5] [User] [Codebase: fulfillment-service/internal/servers/private_virtual_networks_server.go; fulfillment-service/internal/servers/private_subnets_server.go]
+Reuse existing private Update methods for NetworkClass, VirtualNetwork, Subnet, SecurityGroup, ExternalIPPool, ExternalIP, ExternalIPAttachment, and NATGateway. All eight current paths accept map-level metadata edits, subject to existing resource validation. Both administrators use the same map replacement through the API, CLI, and console. Preserve supported ordinary and mixed metadata edits. [Locked: D3, D5] [User] [Codebase: fulfillment-service/internal/servers/private_network_classes_server.go; fulfillment-service/internal/servers/private_virtual_networks_server.go; fulfillment-service/internal/servers/external_ip_lifecycle.go]
 
-Keep existing checks on specification, status, ownership, and operational labels. Add a narrowly scoped reserved-metadata mode only for types whose validators block the required edits. In that mode, use a nonempty reserved-key mask with no ordinary mask and reject other changes with `InvalidArgument`; do not apply this restriction to already-supported ordinary metadata updates. Validate metadata without repeating unrelated creation-time provider/readiness checks. Existing controller status operations continue, and public Update/PATCH remains absent.
+ExternalIP, ExternalIPAttachment, and NATGateway require a nonempty existing `update_mask` and permit metadata paths; clients supply the map-level mask. Keep specification/status/ownership checks and system-default-label restrictions. Editing a fetched map retains untouched operational labels. No reserved-only mode is added. Existing controller status operations continue, and public Update/PATCH remains absent. [Codebase: fulfillment-service/internal/servers/external_ip_lifecycle.go; fulfillment-service/internal/servers/default_networking_validation.go]
 
-The [networking design](../OSAC-1433-unified-networking/design.md#api-operation-constraint) declares metadata immutable. Review each private service's actual behavior and reconcile that contract with supported metadata editing; question 2 identifies the remaining validation work. [Codebase: proto/private/osac/private/v1/*_service.proto]
+The [networking design](../OSAC-1433-unified-networking/design.md#api-operation-constraint) declares metadata immutable. The remaining review question reconciles that document with the existing private metadata paths and this feature's required administrator access. Integration fixtures must verify the allowed edits and lifecycle restrictions for every type.
 
 #### CLI, console, and storage
 
-The CLI keeps `label`/`annotate` syntax, including `key=value` and `key-`. On supported servers it sends every explicit target, including removal of an unseen key, with version locking. Mixed edits use one request; errors produce a nonzero exit. Ordinary operations retain the older-server path; reserved edits on unsupported servers fail locally before mutation. Get/describe uses the server's filtered view.
+The CLI keeps `label`/`annotate` syntax, including `key=value` and `key-`. Before changing the fetched map, it checks every named operation against the caller's API view and authority. A tenant reserved set/removal fails locally, including an unseen or absent key, and sends no Update for a mixed command. Allowed edits replace the fetched selected map using its existing mask and `lock=true`; errors produce a nonzero exit. Private mode selects the API; it does not grant permission, and existing server method authorization still applies. Reserved writes on unsupported servers fail before mutation. Get/describe uses the server's filtered view.
 
-The console adds `/admin/metadata` with a type selector, object list, and shared editor for all 35 private services. Existing detail pages link to it. Both admins can edit either map, including explicit removals. The editor uses version locking and retains unsaved changes after errors. Tenant pages retain ordinary editing and use filtered data for display/search. Private-only types stay in administrator navigation. [Locked: D3, D5]
+The console adds `/admin/metadata` with a type selector, object list, and shared editor for all 35 private services. Existing detail pages link to it. Both admins can edit either complete private map, retaining untouched entries. The editor submits changed maps with the existing mask and version locking and retains unsaved changes after errors. Tenant pages edit visible ordinary maps, reject named reserved operations locally, and use filtered data for display/search. Private-only types stay in administrator navigation. [Locked: D3, D5, D6]
 
 This feature reuses existing platform-admin authorization. Both administrator personas have the same reserved-metadata permissions. The console derives `isPlatformAdmin` from the existing `admins` group claim and sends the user's token for every operation. [Locked: D5] [User] [Codebase: osac-ui/apps/app-frontend/src/hooks/oidc-login.tsx; osac-ui/proxy/middleware/auth.go]
 
@@ -208,14 +201,15 @@ The Container Storage Interface (CSI) driver is a restricted private client with
 | Failure | Result and recovery |
 |---|---|
 | Protected input or query | `PermissionDenied`; no writes or existence disclosure. Remove the prohibited input. |
-| Invalid key, duplicate target, overlapping masks, or prohibited networking edit | `InvalidArgument`; no changes. Correct the request. |
+| Named reserved CLI/console operation from an unprivileged view | Local permission error; no Update is sent and no ordinary subset is applied. |
+| Invalid key/mask or prohibited resource edit | Existing validation error, including `InvalidArgument`; no changes. Correct the request. |
 | Stale version with locking | `Aborted`; no changes. Reload before retrying. |
 | Object outside tenant/project scope | Existing denial/not-found behavior. |
 | Database/transaction failure | Existing `Internal`/`Aborted` mapping and rollback. Reload before retrying. |
-| Unsupported server | Clients block reserved edits before sending Update; ordinary legacy operations continue. |
+| Unsupported server | Clients block reserved writes before Create/Update; ordinary legacy operations continue. |
 | Console proxy/API unavailable | Show the connection error and allow retry; never report success. |
 
-Repeated sets to the same value and authorized absent-key clears are no-ops. A forbidden target always fails, even when absent. No provisioning recovery state is added.
+Replacing a map with identical contents is a no-op. An authorized absent-key removal is a no-op when the client retains all other entries. Supplied or explicitly named forbidden targets fail regardless of existence. A tenant replacement omitting reserved entries succeeds for its ordinary changes and retains those entries; the server cannot recover a removed target from an older client's map. No provisioning recovery state is added. [Locked: D6]
 
 ### RBAC / Tenancy
 
@@ -231,24 +225,27 @@ Use existing RPC status metrics and request logs for permission, validation, con
 
 | Risk | Mitigation |
 |---|---|
-| A service drops the mask or exposes metadata | Cover all 35 types, nested Metadata, and gRPC/REST/Connect routes. |
-| An older server ignores the new helper | Require capabilities; never fall back for reserved edits. |
+| A service drops the existing mask or exposes metadata | Cover all 35 types, nested Metadata, and gRPC/REST/Connect routes. |
+| An older server stores reserved entries without protecting reads | Require namespace enforcement capabilities before reserved writes. |
 | Tenant replacement loses a concurrent admin edit | Preserve reserved entries from the locked current row. |
+| Administrator replacement loses untouched entries | Edit the complete private map; use its existing mask and version locking. |
+| A client erases a forbidden removal target before submitting a map | Check named CLI/console operations first; always preserve tenant reserved entries on the server. |
 | Filters reveal hidden data or slow ordinary queries | Check protected references, filter whole maps, retain ordinary index paths, and inspect whole-map query plans. |
 | UI and API authority differ | Use the same `admins` claim and enforce permissions on every request. |
-| Networking edits bypass existing restrictions | Keep existing validators. Compare nonreserved fields with stored data only in a reserved-only mode needed to enable otherwise blocked edits. |
+| Networking edits bypass existing restrictions | Keep existing validators and required masks; cover operational labels and lifecycle states. |
 
 API/authentication and console maintainers review their boundaries and the open questions below.
 
 ### Drawbacks
 
-The helper requires changes to every Update handler and generated client. The console registry must track new resource types. Supporting both legacy map replacement and exact-key editing adds maintenance, while preserving existing ordinary clients.
+Whole-map editing requires clients to retain untouched entries and reload after conflicts. The server cannot distinguish a forbidden removal from omission once a client has discarded the target. CLI/console checks provide the named-operation error; stored-entry preservation provides API protection. The console registry must track new resource types.
 
 ## Alternatives (Not Implemented)
 
 | Alternative | Benefit | Reason for rejection |
 |---|---|---|
 | Reserve all `osac.openshift.io/` keys | Reuse one prefix | Changes existing isolation/lifecycle metadata behavior. |
+| Add a per-key metadata mask | Server receives explicit set/removal targets | Adds fields and forwarding to every Update request; the confirmed whole-map preservation rule uses the existing contract. |
 | Put qualified keys in FieldMask | Use one mask type | Installed JSON codecs reject the paths; custom codecs add transport maintenance. |
 | JSON Merge Patch / JSON Patch | Explicit removal | Adds a separate format/parser across gRPC, REST, and Connect. |
 | Ignore forbidden entries | Simple merging | Violates whole-request rejection. |
@@ -258,30 +255,23 @@ The helper requires changes to every Update handler and generated client. The co
 
 ## Open Questions
 
-### 1. Generic Update extension
+### 1. Networking metadata contract
 
-Do API maintainers accept `MetadataUpdateMask` as the generic exact-key update mechanism? The API guidelines prefer standard request fields; the JSON FieldMask limitation motivates this extension.
-
-- **Owner:** Fulfillment Service API maintainers.
-- **Impact:** IC-3, IC-8, IC-9, IC-11 and generated clients. Another representation changes the examples and transport tests.
-
-### 2. Networking metadata update capability
-
-Which networking types, if any, need validation changes to support reserved metadata through their existing private Update methods? Inventory current ordinary and reserved-key edit/removal behavior, preserve supported ordinary updates, and add a reserved-only mode only where necessary. Reconcile the networking document's metadata-immutability rule with the supported behavior. Support for both admins on all covered networking resources is required. [User]
+How should the networking document describe administrator metadata edits through the existing private Update methods while retaining its public immutability boundary? All eight paths accept map-level metadata in the current source; preserve their supported ordinary edits and validate the complete behavior with fixtures. Both admins must have the required reserved-metadata access on every covered networking resource. [User]
 
 - **Owner:** Fulfillment Service API and networking maintainers.
-- **Impact:** IC-2, IC-3, IC-8, IC-9 and cases TC-IS1-03 / TC-IS4-05. The inventory determines which validators need changes and which existing behaviors require compatibility coverage.
+- **Impact:** IC-2, IC-3, IC-8, IC-9 and cases TC-IS1-03 / TC-IS4-05. Resolve the documented private metadata contract and any validation mismatch found by the integration matrix without introducing public Update or removing supported ordinary behavior.
 
 ## Test Plan
 
-The [test plan](testplan.md) contains 30 planned cases covering all five scope bullets and 11 interfaces. It records execution commands, real versus mocked dependencies, and remaining harness/fixture work. No implementation tests were run during drafting.
+The [test plan](testplan.md) contains 29 planned cases covering all five scope bullets and 11 interfaces. It records execution commands, real versus mocked dependencies, and remaining harness/fixture work. No implementation tests were run during drafting or this revision.
 
 ### Unit Tests
 
 - Prefix matching, key validation, explicit target rejection, and admin/capability defaults.
-- Exact set/clear, legacy hidden-entry preservation, overlapping masks, stale versions, and rollback handling.
+- Selected-map replacement, empty maps/values, tenant reserved-entry preservation, stale versions, and rollback handling.
 - Nested response/event filtering and protected versus ordinary queries.
-- CLI target retention and console registry, compatibility, and unsaved-error state.
+- CLI/console named-operation checks, map/mask forwarding, registry, compatibility, and unsaved-error state.
 
 ### Integration Tests
 
@@ -295,7 +285,7 @@ Both admins manage reserved metadata through the deployed console/proxy/API. Bot
 
 ## Graduation Criteria
 
-For 0.4 Tech Preview, resolve both open questions, document the contract, and pass all required coverage: 35 types, both admins, API/CLI/console parity, tenant privacy, atomic rejection, concurrency, and ordinary compatibility. Close G-1 and G-2 with maintained suites and recorded execution results.
+For 0.4 Tech Preview, resolve the networking contract question, document the contract, and pass all required coverage: 35 types, both admins, API/CLI/console parity, tenant privacy, atomic rejection, concurrency, and ordinary compatibility. Close G-1 and G-2 with maintained suites and recorded execution results.
 
 ## Upgrade / Downgrade Strategy
 
@@ -303,7 +293,7 @@ No in-place upgrades are added. Existing storage and field numbers remain intact
 
 ## Version Skew Strategy
 
-Older ordinary clients keep working against the new server. Updated clients require advertised support before key-mask edits, including native gRPC clients whose unknown fields could otherwise be ignored. Console types/proxy schemas must match the deployed API. Existing controller clients and CRDs need no new fields.
+Older ordinary clients keep working against the new server, which preserves reserved entries from its locked stored row on every tenant update. An older client that discards a named reserved removal cannot report the new local permission error; its map omission still cannot delete stored reserved data. Updated clients require advertised namespace enforcement before reserved writes, because older servers accept the existing request shape without providing privacy. Ordinary operations retain their existing older-server path. Console types/proxy schemas must match the deployed API; Update requests and CRDs gain no fields.
 
 ## Support Procedures
 
@@ -320,6 +310,6 @@ Reuse existing Kind API/database/Keycloak and Kafka harnesses. Add the maintaine
 ## Provenance
 
 Authored: revise @ design 0.11.5 - 1c6e8de, workspace main @ f0a8211
-Phases: draft, revise, revise, revise, revise, revise, revise, revise
+Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise
 
-<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
+<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
