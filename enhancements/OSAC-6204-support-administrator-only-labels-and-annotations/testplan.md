@@ -285,7 +285,7 @@ For each public metadata-bearing type, seed both maps with ordinary and reserved
 
 1. Get and List as both tenant personas; perform allowed ordinary Create/Update that returns an object containing stored reserved metadata.
 2. Repeat public reads with administrator credentials and inspect nested response objects.
-3. Compare public responses with authorized private responses and the stored source; inspect whether projection mutated that source.
+3. Compare public responses produced through existing public mappers with authorized private responses and the stored source; inspect whether projection mutated that source.
 
 ##### Expected Results
 
@@ -308,7 +308,7 @@ Real Kafka-backed EventsServer coverage is available. Public watches are ready b
 ##### Steps
 
 1. Publish a create/update event containing reserved entries, nested Metadata, and a known ordinary filter match.
-2. Consume through public tenant, public administrator, and authorized private watches; compare event identifiers, timestamps, and visible entries.
+2. Consume through public tenant, public administrator, and authorized private watches; compare event identifiers, timestamps, and visible entries. Verify public mapping runs before predicate evaluation.
 3. Change a reserved value without changing ordinary matching entries and repeat; allow at most 30 seconds after publication in the test harness.
 
 ##### Expected Results
@@ -403,7 +403,7 @@ SelfSubjectAccessReview is an ephemeral message carrying Metadata, not one of th
 
 1. Submit a review request with ordinary metadata through each supported external view.
 2. Exercise response projection with a review response fixture containing reserved entries, including a nested review message.
-3. Submit a review carrying a reserved map entry through each supported public/private view under existing method permissions.
+3. Submit a review carrying a reserved map entry through each supported public/private view under existing method permissions; check that the public handler validates before delegation.
 
 ##### Expected Results
 
@@ -422,12 +422,12 @@ SelfSubjectAccessReview is an ephemeral message carrying Metadata, not one of th
 
 ##### Preconditions
 
-Both tenant personas have valid create permissions on representative mutable services and valid referenced dependencies; record object count and provisioning/JIT side effects.
+Both tenant personas have valid create permissions on representative mutable services and valid referenced dependencies. Complete existing account setup before the case; record object count and resource dependency/provisioning side effects.
 
 ##### Steps
 
 1. Create with an ordinary entry plus a reserved label; repeat with a reserved annotation and both maps.
-2. Repeat across the supported Create inventory, including requests where reserved entries are nested in actual Metadata.
+2. Repeat across the supported Create inventory, including requests where reserved entries are nested in actual Metadata. Verify the public handler rejects original input before mapping/delegation or resource preparation.
 3. Inspect the public error, authorized private inventory, and transaction-side-effect tables.
 
 ##### Expected Results
@@ -450,7 +450,7 @@ A tenant-visible object has ordinary metadata and stored reserved entries; take 
 ##### Steps
 
 1. Update with mixed ordinary changes and a reserved entry that adds a key, changes a value, or supplies the same stored value.
-2. Repeat with the reserved supplied entry outside the ordinary mask and in each map.
+2. Repeat with the reserved supplied entry outside the ordinary mask and in each map. Verify rejection before mapping/delegation; allowed controls reach GenericServer's shared candidate path before resource preparation/validation.
 3. Read the full private object after each attempt.
 4. Repeat with lock omitted/false and with lock=true plus the current version.
 
@@ -564,17 +564,17 @@ A tenant has pending ordinary edits and an object with reserved entries. Capture
 
 ##### Preconditions
 
-A real PostgreSQL test transaction can observe candidate/object writes and auxiliary JIT/reference rows. Use a handler fault fixture; do not provision external infrastructure.
+A real PostgreSQL test transaction can observe candidate/object writes and auxiliary dependency/reference rows. Use a handler fault fixture; do not provision external infrastructure.
 
 ##### Steps
 
-1. Submit forbidden raw input that would otherwise trigger JIT provisioning or reference processing.
+1. Submit forbidden raw input that would otherwise trigger handler-level dependency creation or reference mutation.
 2. In a separate integration fixture, make the handler write test rows and then return an error through TxInterceptor.
 3. Read the object, version, and auxiliary tables from a separate transaction after completion.
 
 ##### Expected Results
 
-- Forbidden input is rejected before JIT/reference mutation.
+- Forbidden input is rejected by the public handler's shared validation before resource dependency/reference mutation. Existing authentication and account provisioning behavior is unchanged.
 - The handler error is reported to the transaction before End; both test rows and object changes are rolled back. An error response never accompanies a committed partial change.
 - Real database rollback evidence is required; a mocked transaction call-order test alone is insufficient.
 
