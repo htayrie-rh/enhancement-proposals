@@ -21,6 +21,8 @@ The PRD uses In Scope bullets rather than FR/NFR identifiers. IS-1 through IS-5 
 
 Under confirmed D6, tenant map omission always preserves stored reserved entries. Named forbidden CLI/console operations fail locally before any Update; supplied reserved entries and accepted explicit protected mask paths fail on the server. A whole-map request cannot reveal a removal target that a client has already discarded.
 
+Request locking remains optional: `lock` omitted/false skips the version comparison; `lock=true` checks the supplied version. Reserved-key protection applies to both modes. Database row locking and transaction atomicity remain in use in either mode.
+
 Cases can provide evidence for several bullets; their primary anchor determines numbering only. The case metadata below lists every tested interface change. IC-1 through IC-11 refer to the design's API Extensions table.
 
 ## Shared fixtures and oracles
@@ -81,7 +83,7 @@ For each of the 35 persistent types, seed valid dependencies and an object with 
 ##### Steps
 
 1. For each administrator, type, and map, Create with a reserved entry where supported, then Get/List through its private service.
-2. Read the full map/version, change a reserved value and add a second reserved key, then remove each by omission from a replacement map. Select the edited map with the existing update_mask and set lock=true.
+2. Read the full map, change a reserved value and add a second reserved key, then remove each by omission from a replacement map. Select the edited map with the existing update_mask. Repeat with lock omitted/false and with lock=true plus the current version.
 3. Compare ordinary entries, reserved values, identifier, and version after each mutation using an authorized private read.
 
 ##### Expected Results
@@ -128,7 +130,7 @@ Fixtures cover NetworkClass, VirtualNetwork, Subnet, SecurityGroup, ExternalIPPo
 
 ##### Steps
 
-1. For both admins, set, change, and remove reserved entries on all eight services using fetched replacement maps, existing map-level masks, version, and lock=true.
+1. For both admins, set, change, and remove reserved entries on all eight services using fetched replacement maps and existing map-level masks. Repeat with lock omitted/false and with lock=true plus the current version.
 2. Exercise supported ordinary and mixed ordinary/reserved map edits, retaining untouched operational labels. ExternalIP, ExternalIPAttachment, and NATGateway use a nonempty ordinary mask.
 3. Attempt each recorded forbidden field/default-label change together with a reserved edit. Also omit the mandatory mask on the three lifecycle services.
 4. Verify public Update remains absent and existing controller status operations retain their behavior.
@@ -154,14 +156,14 @@ A mutable private object has multiple entries in both maps and a known version. 
 
 ##### Steps
 
-1. PATCH an edited labels map containing qualified keys and version, first with update_mask=metadata.labels and lock=true, then without an explicit mask to exercise the body-derived mask.
+1. PATCH an edited labels map containing qualified keys, first with update_mask=metadata.labels, then without an explicit mask to exercise the body-derived mask. Repeat with lock omitted/false and with lock=true plus the current version.
 2. With an explicit labels mask, send an empty map, then an omitted map, to clear labels. Repeat for annotations and for both selected maps.
 3. Compare REST results with native gRPC map-level requests and verify unselected maps/fields through private reads.
 
 ##### Expected Results
 
 - Qualified keys remain map entries and reach the service unchanged; body-derived masks select complete maps, not per-key paths.
-- Administrator replacement/clearing agrees with native gRPC. Explicit masks retain selection; unselected fields remain intact. Version locking rejects stale input.
+- Administrator replacement/clearing agrees with native gRPC. Explicit masks retain selection; unselected fields remain intact. Stale versions are rejected only when lock=true; unlocked updates require no version precondition.
 - No custom query parser or additional mask representation is required. Tenant map preservation is checked separately by TC-IS4-01.
 
 #### TC-IS1-05: CLI private metadata operations submit complete selected maps
@@ -184,7 +186,7 @@ The updated CLI has private administrator credentials, sees namespace enforcemen
 
 ##### Expected Results
 
-- The request contains the complete edited selected map, its existing map-level update_mask, the fetched version, and lock=true.
+- The request contains the complete edited selected map and its existing map-level update_mask. Existing lock defaults/options are preserved; no new lock=true or version precondition is forced.
 - Untouched map entries and unrelated fields remain intact; key- deletes by omission and an empty string remains a value. Authorized absent-key removal is a no-op.
 - Private reads show reserved values; both personas have identical coverage. Alias/registry completeness failures cannot silently omit a type.
 
@@ -204,12 +206,12 @@ Both administrators can sign in to the deployed console. Valid fixtures exist fo
 
 1. Open /admin/metadata with each persona and enumerate every type, including private-only types and types without a dedicated detail page.
 2. For each type, use both map editors to add, change, and remove a reserved entry while retaining untouched ordinary/reserved entries.
-3. Inspect Connect/proxy request forwarding of full selected maps, the existing mask, and lock=true; follow detail-page links and reload through the API.
+3. Inspect Connect/proxy forwarding of full selected maps, the existing mask, and any supplied lock/version options; follow detail-page links and reload through the API. Verify this feature does not force lock=true.
 
 ##### Expected Results
 
 - Both personas have identical resource/action coverage; registry completeness is checked against all 35 types.
-- Editors display complete private maps and submit their edited replacements with version locking. Untouched entries and unselected maps/fields remain intact.
+- Editors display complete private maps and submit their edited replacements using existing update options, with no mandatory version checking. Untouched entries and unselected maps/fields remain intact.
 - Connect/proxy/API persistence and existing detail-page links reach the same shared editor.
 
 #### TC-IS1-07: Clients establish namespace enforcement before reserved writes
@@ -261,13 +263,13 @@ Accounts represent both administrators, Tenant Admin, Tenant User, and the restr
 - Public reserved Create/Update requests from either administrator return PermissionDenied and apply no changes or side effects. Administrator authority never bypasses the public API's reserved-key restriction.
 - Private RPC access continues to require the existing method/object authorization independently of metadata projection.
 
-#### TC-IS1-09: Version locking protects administrator replacement maps
+#### TC-IS1-09: Optional version checks retain existing update semantics
 
 | Interface Change | Priority | Automation |
 |---|---|---|
 | IC-3, IC-8, IC-9 | high | automated |
 
-**Tier:** Component integration; deployed Fulfillment; UI unit
+**Tier:** Component integration; deployed Fulfillment; CLI/UI unit
 
 ##### Preconditions
 
@@ -275,15 +277,17 @@ An administrator reads a complete map at version v; a second authorized update c
 
 ##### Steps
 
-1. Submit the edited stale map with its ordinary map-level mask, metadata.version=v, and lock=true through gRPC, REST, CLI, and Connect.
+1. Submit the edited stale map with its ordinary map-level mask, metadata.version=v, and lock=true through gRPC, REST, and Connect requests.
 2. Read the complete private object after each rejection and inspect CLI/editor state.
-3. Reload the full current map/version, retain the concurrent entry, and resubmit the intended edit.
+3. Repeat the API request with lock=false and with lock omitted, using a stale or omitted version. Compare the result with existing selected-map replacement semantics.
+4. Reload the full current map/version, retain the concurrent entry, and resubmit the intended edit with lock=true.
+5. Inspect CLI/UI protocol fixtures: preserve existing lock defaults and any existing caller opt-in option, without adding a mandatory version precondition.
 
 ##### Expected Results
 
-- Every stale operation returns Aborted, changes nothing, and retains the concurrent entry/current version.
-- CLI reports failure; the editor retains unsaved edits and requires reload/resubmission. It does not automatically replay a stale complete map.
-- A fresh-version replacement succeeds without losing the other administrator entry.
+- With lock=true, a stale operation returns Aborted, changes nothing, and retains the current map/version. Clients receiving that error report failure and retain unsaved edits for reload/resubmission.
+- With lock omitted/false, version mismatch alone does not reject the request. A valid replacement succeeds under existing semantics and can overwrite a concurrent change in the selected private map.
+- A fresh-version locked replacement succeeds without losing the other administrator entry. Client defaults and existing opt-in options remain unchanged.
 
 ### IS-2: Tenant visibility
 
@@ -470,6 +474,7 @@ A tenant-visible object has ordinary metadata and stored reserved entries; take 
 1. Update with mixed ordinary changes and a reserved entry that adds a key, changes a value, or supplies the same stored value.
 2. Repeat with the reserved supplied entry outside the ordinary mask and in each map.
 3. Read the full private object after each attempt.
+4. Repeat with lock omitted/false and with lock=true plus the current version.
 
 ##### Expected Results
 
@@ -614,7 +619,7 @@ A tenant-visible mutable object contains multiple ordinary/reserved entries in b
 1. Replace metadata.labels, metadata.annotations, and parent metadata with existing accepted masks, and exercise the existing no-mask path where supported.
 2. Send ordinary edits, empty selected maps, and omitted selected maps; verify an unselected map remains unchanged.
 3. Run an older CLI fixture that deletes an unseen reserved key locally before submitting its ordinary map, including a mixed ordinary change.
-4. Compare complete private maps/versions with the baseline ordinary replacement behavior.
+4. Repeat accepted forms with lock omitted/false and with lock=true plus the current version; compare complete private maps/versions with the baseline ordinary replacement behavior.
 
 ##### Expected Results
 
@@ -662,7 +667,7 @@ A tenant reads its visible maps/version v; an administrator adds, changes, or re
 ##### Steps
 
 1. Submit the stale ordinary replacement with its map-level mask and lock=true; inspect the row.
-2. Repeat with the existing unlocked path where supported, controlling row-acquisition order. Include empty map, parent-metadata, and unmasked forms.
+2. Repeat with lock=false and with lock omitted, controlling row-acquisition order and using a stale or omitted request version. Include empty-map, parent-metadata, and unmasked forms where those forms are supported.
 3. Compare ordinary edits and the complete latest reserved portion through an authorized private read.
 
 ##### Expected Results
@@ -715,7 +720,7 @@ Use older ordinary CLI fixtures, updated clients against legacy server fixtures,
 
 ##### Expected Results
 
-- Supported ordinary operations remain available; updated clients select only edited maps and use version locking without replacing unrelated fields.
+- Supported ordinary operations remain available; updated clients select only edited maps and preserve existing optional lock behavior without replacing unrelated fields.
 - The new server preserves reserved entries on tenant updates. Ordinary older-server operations remain supported, and capabilities do not grant permissions.
 - Public networking Update remains absent. Existing private networking metadata, operational-label, immutable-field, and lifecycle-mask rules remain enforced.
 
@@ -764,7 +769,7 @@ Guide examples, CLI help, and API schema are available for the proposed implemen
 ##### Expected Results
 
 - Guides describe identical admin actions on all persistent types and private-only types, tenant privacy, and whole-request rejection for observable forbidden input.
-- Examples use existing Update maps/masks/lock; administrator omission deletes while tenant omission preserves. Named CLI/console removal is checked before sending a map, and discarded targets cannot be inferred by the server.
+- Examples use existing Update maps/masks and make locking optional: omitted/false requires no version precondition; true checks the supplied version. Administrator omission deletes while tenant omission preserves. Named CLI/console removal is checked before sending a map, and discarded targets cannot be inferred by the server.
 - Support guidance requires namespace enforcement before reserved writes, documents older-client limitations, excludes in-place upgrades, and logs no protected values.
 
 ## Coverage summary and remaining work

@@ -47,9 +47,9 @@ Use existing whole-map updates: authorized private administrators replace select
 ### Workflow Description
 
 1. An administrator selects an object through private Get/List, `osac login --private`, or `/admin/metadata`.
-2. The client reads its complete maps and version, then edits a copy while retaining untouched entries.
-3. Submit the changed maps, object ID, existing `update_mask`, and `lock=true`.
-4. The server validates and saves atomically, returning the private view. A stale version requires reload before retrying.
+2. The client reads its complete maps, then edits a copy while retaining untouched entries.
+3. Submit the changed maps, object ID, and existing `update_mask`. Optionally request version checking with `lock=true` and the fetched `metadata.version`.
+4. The server validates and saves atomically, returning the private view. A version mismatch with `lock=true` requires reload before retrying.
 
 ![Metadata update flow: request validation, tenant reserved-entry preservation, atomic persistence, and response filtering.](assets/metadata-update-flow.png)
 
@@ -63,7 +63,7 @@ IS-1 through IS-5 identify the PRD's five In Scope bullets. These interface IDs 
 |---|---|---|
 | IC-1 | Reserve the namespace and its subdomains; keep key/value validation | IS-1, IS-2, IS-3, IS-4, IS-5 |
 | IC-2 | Cover all 35 private persistent types and supported metadata updates | IS-1, IS-2, IS-4 |
-| IC-3 | Preserve tenant reserved entries using existing masks and version locking | IS-1, IS-3, IS-4 |
+| IC-3 | Preserve tenant reserved entries using existing masks and optional version locking | IS-1, IS-3, IS-4 |
 | IC-4 | Reject forbidden server input and named client operations atomically | IS-3, IS-4 |
 | IC-5 | Filter object responses, nested Metadata, and events | IS-2, IS-4 |
 | IC-6 | Protect filters and matching counts | IS-2, IS-4 |
@@ -124,23 +124,30 @@ Empty strings are values. Existing parent-metadata, unmasked, and accepted per-k
 
 Change GenericServer's update path:
 
-1. Read the stored object under the existing row lock and check the requested version.
+1. Read the stored object under the existing database row lock. Compare `metadata.version` only when the request sets `lock=true`.
 2. Apply the existing mask or unmasked replacement to a detached candidate.
 3. For public requests and non-admin private requests, replace the candidate's reserved portion in both maps with the locked stored portion. Preserve ordinary replacement/deletion behavior.
 4. Validate and save using existing identity, ownership, and resource rules. Restored stored entries are trusted data; do not reject them as caller input.
 
 Keep forwarding the mask and `lock` through public handlers. In TxInterceptor, call `tx.ReportError(&err)` before transaction End so returned handler errors roll back earlier writes. [Codebase: fulfillment-service/internal/servers/generic_server.go; fulfillment-service/internal/database/database_tx_interceptor.go]
 
-Updated metadata clients use the fetched version and `lock=true`. Transactions make the write atomic; version checks prevent stale client maps from overwriting concurrent edits. Legacy unlocked tenant updates still preserve the latest stored reserved portion.
+Keep the existing optional `lock` behavior in every API, CLI, and console path. This feature does not require clients to enable version checking.
+
+| Request | Version handling |
+|---|---|
+| `lock` omitted or `false` | No version precondition; existing map replacement behavior applies. |
+| `lock=true` | Compare the supplied `metadata.version`; a mismatch returns `Aborted` with no changes. |
+
+Reserved-key rejection, response filtering, and public-update preservation work with either setting. Both paths still use the database row lock and transaction; the request's `lock` flag controls only the version comparison. Without that comparison, a stale replacement can overwrite concurrent edits to the selected map, while public updates always retain its latest stored reserved entries.
 
 REST keeps `body: "object"`, generated body-derived masks, and explicit map-level query masks:
 
 ```text
-PATCH /api/private/v1/compute_instances/<id>?update_mask=metadata.labels&lock=true
-Body: {"metadata":{"version":7,"labels":{"example.org/environment":"prod"}}}
+PATCH /api/private/v1/compute_instances/<id>?update_mask=metadata.labels
+Body: {"metadata":{"labels":{"example.org/environment":"prod"}}}
 ```
 
-This replaces labels under the table's rules; an empty map clears the permitted portion. Native gRPC and Connect use the full request with object ID/version, the same map, `update_mask.paths = ["metadata.labels"]`, and `lock=true`. No Update field or custom gateway parser is added. [Codebase: proto/gen/osac/private/v1/compute_instances_service.pb.gw.go]
+This unlocked request replaces labels under the map rules; an empty map clears the permitted portion. To opt into version checking, add `lock=true` and the fetched `metadata.version`. Native gRPC and Connect use the full request with object ID, the same map, `update_mask.paths = ["metadata.labels"]`, and the same optional lock/version inputs. No Update field or custom gateway parser is added. [Codebase: proto/gen/osac/private/v1/compute_instances_service.pb.gw.go]
 
 #### Response, event, and query privacy
 
@@ -156,7 +163,7 @@ Retain supported ordinary/mixed edits, specification/status/ownership validation
 
 #### CLI, console, and capabilities
 
-- **CLI:** retain `label`/`annotate`, `key=value`, and `key-`. Validate all named operations before editing the fetched map; a forbidden set/removal, including an absent key in a mixed command, sends no Update and exits nonzero. Submit allowed changes as complete selected maps with version locking. Private mode selects the API; server authorization decides access.
+- **CLI:** retain `label`/`annotate`, `key=value`, and `key-`. Validate all named operations before editing the fetched map; a forbidden set/removal, including an absent key in a mixed command, sends no Update and exits nonzero. Submit allowed changes as complete selected maps, preserving existing lock defaults and caller options. Private mode selects the API; server authorization decides access.
 - **Console:** add `/admin/metadata`, a type/object selector, and shared map editor for all 35 private services. Link existing detail pages; keep private-only types in administrator navigation. Use the `admins` group claim for `isPlatformAdmin` and forward the user's token. Tenant pages use filtered maps for display/search and validate named operations. Editors retain unsaved changes after errors. [Locked: D5, D6]
 - **Capabilities:** add `MetadataCapabilities metadata = 3` to CapabilitiesGetResponse, containing `string reserved_prefix = 1`. Advertise `admin.osac.openshift.io/` only with complete write/response/event/query enforcement. Updated clients require the matching prefix before reserved Create/Update; the advertisement grants no authority. [Codebase: proto/private/osac/private/v1/capabilities_service.proto]
 
@@ -173,7 +180,7 @@ Enforce protection on the server, independently of UI roles, headers, or reflect
 | Forbidden server input/query | `PermissionDenied`; no changes or key-existence disclosure. Correct input/access. |
 | Named forbidden client operation | Local permission error; no Update or ordinary subset. |
 | Invalid key/mask or resource edit | Existing validation error, including `InvalidArgument`; correct input. |
-| Stale version | `Aborted`; reload the full map before retrying. |
+| Stale version with `lock=true` | `Aborted`; reload the full map before retrying. With `lock` omitted/false, apply existing update semantics. |
 | Object outside scope | Existing denial/not-found behavior. |
 | Database/transaction failure | Existing `Internal`/`Aborted` mapping and rollback; reload before retrying. |
 | Unsupported server | Block reserved Create/Update; ordinary operations continue. |
@@ -194,7 +201,7 @@ Use existing RPC status metrics and logs; add no metrics or events. Log methods 
 | Risk | Mitigation |
 |---|---|
 | Metadata leaks or a handler drops update controls | Cover all 35 types, nested/events, and every transport. |
-| Replacement loses entries | Retain untouched client entries, use version checks, and restore tenant reserved entries from the locked row. |
+| Replacement loses entries | Retain untouched client entries; optional version checks detect conflicts. Always restore public callers' reserved entries from the locked row. |
 | Client discards forbidden removal intent | Validate named operations before map editing. |
 | Whole-map queries add cost | Keep literal-key indexes and inspect query plans. |
 | UI authority or networking behavior diverges | Verify token/OPA mapping and existing networking validators. |
@@ -267,6 +274,6 @@ Reuse Kind, PostgreSQL, Keycloak, and Kafka harnesses. Add the G-1 browser runne
 ## Provenance
 
 Authored: respond @ design 0.11.5 - 1c6e8de, workspace main @ f0a8211
-Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond, respond
+Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond, respond, respond
 
-<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
+<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond","respond","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
