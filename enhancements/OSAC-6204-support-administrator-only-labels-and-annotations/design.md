@@ -46,7 +46,7 @@ Enforce protection in the backend using existing updates: private API calls repl
 
 1. A user with existing private API access selects an object through private Get/List, `osac login --private`, or `/admin/metadata`.
 2. The client reads its complete maps, then edits a copy while retaining untouched entries.
-3. Submit the changed maps, object ID, and existing `update_mask`.
+3. Submit the existing Update request with the object ID, edited maps, and an update mask when supplied.
 4. The server validates and saves atomically, returning the private view.
 
 ![Metadata update flow: request validation, tenant reserved-entry preservation, atomic persistence, and response filtering.](assets/metadata-update-flow.png)
@@ -73,7 +73,7 @@ IS-1 through IS-5 identify the PRD's five In Scope bullets. These interface IDs 
 
 #### Reserved keys and resource scope
 
-Add a shared predicate for `admin.osac.openshift.io` and its subdomains. Split valid keys at `/`; the DNS prefix must equal `admin.osac.openshift.io` or end with `.admin.osac.openshift.io`. Keep case-sensitive matching and existing key/value validation, including uppercase name segments. [User: review alignment]
+Add a shared predicate for `admin.osac.openshift.io` and its subdomains. Split valid keys at `/`; the DNS prefix must equal `admin.osac.openshift.io` or end with `.admin.osac.openshift.io`. Keep case-sensitive matching and existing key/value validation, including rejection of uppercase key-name segments and label values. [User: review alignment]
 
 `admin.osac.openshift.io/tracking-id` and `child.admin.osac.openshift.io/tracking-id` are reserved, including deeper subdomains. `fakeadmin.osac.openshift.io/tracking-id`, `admin.osac.openshift.io.example/tracking-id`, `osac.openshift.io/tenant`, `osac.openshift.io/owner-reference`, `admin`, and `system` stay ordinary. Keys without a `/` have no reserved DNS prefix.
 
@@ -89,7 +89,7 @@ Cover all 35 persistent types:
 | Storage | StorageBackend, StorageTier, Volume |
 | Administration | Hub, Tenant, User, IdentityProvider, Project, ProjectMembership, Role, RoleBinding, Secret |
 
-Each has private Update; service enablement still applies. Hub, NetworkClass, StorageBackend, and Volume are private-only. Apply input/output protection to ephemeral SelfSubjectAccessReview without adding persistent CRUD.
+Each has private Update; service enablement still applies. Only Hub, NetworkClass, and StorageBackend are private-only. Volume and FabricDomain have public CRUD, including Update; apply the public protection to those existing methods. Apply input/output protection to ephemeral SelfSubjectAccessReview without adding persistent CRUD.
 
 #### Authorization and write validation
 
@@ -106,7 +106,7 @@ Keep shared reserved-key validation and map-preservation helpers with GenericSer
 
 #### Whole-map Update
 
-Use the existing Update request. Clients select `metadata.labels`, `metadata.annotations`, or both and send complete replacement maps.
+Use the existing Update request. An update mask can select `metadata.labels`, `metadata.annotations`, or both for complete map replacement. The table describes selected-map updates; existing unmasked requests remain supported where the service permits them.
 
 | Selected-map input | Public API | Private API |
 |---|---|---|
@@ -116,6 +116,8 @@ Use the existing Update request. Clients select `metadata.labels`, `metadata.ann
 | Map not selected | Unchanged, subject to raw-input rejection above | Unchanged |
 
 Empty strings are values. Existing parent-metadata, unmasked, and accepted per-key updates retain their semantics, with reserved-entry preservation on every tenant update. Identical maps and authorized absent-key removals are no-ops. [Locked: D6]
+
+For unmasked updates, keep each handler's current map behavior. Private generic Update replaces the object; public wrappers such as ComputeInstance copy nonempty submitted maps into fetched maps, retaining omitted ordinary keys. Empty maps follow existing clearing rules. Restore reserved entries from the locked row in every public path. The unchanged CLI uses its existing unmasked request; this feature does not normalize ordinary map behavior. [Codebase: fulfillment-service/internal/servers/compute_instances_server.go; fulfillment-service/internal/servers/generic_mapper.go; fulfillment-service/internal/reflection/reflection_helper.go]
 
 Change GenericServer's update path:
 
@@ -145,7 +147,7 @@ For public queries, inspect parsed, type-checked CEL filters. Explicit reserved-
 
 Reuse private Update for NetworkClass, VirtualNetwork, Subnet, SecurityGroup, ExternalIPPool, ExternalIP, ExternalIPAttachment, and NATGateway; all eight current paths accept map-level metadata. ExternalIP, ExternalIPAttachment, and NATGateway require a nonempty existing mask. [Codebase: fulfillment-service/internal/servers/external_ip_lifecycle.go]
 
-Retain supported ordinary/mixed edits, specification/status/ownership validation, system-default-label restrictions, and controller status operations. Clients retain untouched operational labels. Public networking Update stays absent; the documentation conflict remains below. [Locked: D3, D5] [User]
+Retain supported ordinary/mixed edits, specification/status/ownership validation, system-default-label restrictions, and controller status operations. Clients retain untouched operational labels. Public Update stays absent for these eight services; the documentation conflict remains below. FabricDomain retains its existing public/private Update methods and validators. [Locked: D3, D5] [User]
 
 #### CLI and console
 
@@ -170,7 +172,7 @@ Reuse existing method/object, tenant/project, and trusted controller permissions
 
 ### Observability and Monitoring
 
-Use existing RPC status metrics and logs; add no metrics or events. Log methods and supplied keys, never metadata values.
+Reuse existing RPC status metrics and logs. Feature-specific validation messages contain only methods and supplied key names. Existing optional debug body logging can include metadata values and retains its current redaction behavior.
 
 ### Risks and Mitigations
 
@@ -204,7 +206,7 @@ Clients must retain untouched map entries and reload after conflicts. The consol
 
 ### 1. Networking metadata contract
 
-How should the [networking design](../OSAC-1433-unified-networking/design.md#api-operation-constraint) reconcile metadata immutability with existing private updates and reserved-key edits? Preserve supported ordinary operations and public immutability. [User]
+How should the [networking design](../OSAC-1433-unified-networking/design.md#api-operation-constraint) reconcile metadata immutability for its eight listed types with existing private updates and reserved-key edits? Preserve their supported ordinary operations and absent public Update methods. FabricDomain retains its existing public/private methods. [User]
 
 - **Owner:** Fulfillment Service API and networking maintainers.
 - **Impact:** IC-2, IC-3, IC-9; TC-IS1-03 and TC-IS4-05 verify validators and lifecycle behavior.
@@ -249,7 +251,7 @@ Reuse Kind, PostgreSQL, Keycloak, and Kafka harnesses. Add the G-1 browser runne
 
 ## Provenance
 
-Authored: respond @ design 0.11.5 - 1c6e8de, workspace main @ f0a8211
-Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond
+Authored: revise @ design 0.11.5 - 1c6e8de, workspace main @ f0a8211
+Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond, revise
 
-<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
+<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond","revise"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->

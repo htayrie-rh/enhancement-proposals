@@ -49,7 +49,7 @@ Reserved-key public input returns InvalidArgument with “Label or annotation is
 | Storage | StorageBackend, StorageTier, Volume |
 | Platform / identity | Hub, Tenant, User, IdentityProvider, Project, ProjectMembership, Role, RoleBinding, Secret |
 
-Total: 35 persistent types. Hub, NetworkClass, StorageBackend, and Volume are private-only; do not invent public methods for them. For each type, test supported Create responses where available and all existing private Update methods. SelfSubjectAccessReview is the additional ephemeral Metadata-bearing message, covered by TC-IS2-06 without persistent CRUD. Inventory completeness is an explicit test assertion, not a sample of familiar VM/network resources.
+Total: 35 persistent types. Only Hub, NetworkClass, and StorageBackend are private-only. The other 32 include Volume and FabricDomain with public CRUD; include their existing public methods in input, response, preservation, and query coverage under existing permissions. Use only existing public event payloads. Test every private Update. SelfSubjectAccessReview is the additional ephemeral Metadata-bearing message, covered by TC-IS2-06 without persistent CRUD. Inventory completeness is an explicit assertion.
 
 ## Execution and evidence matrix
 
@@ -120,7 +120,7 @@ An administrator reads a private object with two ordinary and two reserved entri
 - A selected empty/omitted map clears completely. Unselected maps and fields remain intact. Allowed mixed field changes apply atomically.
 - Existing unmasked/per-key behavior is retained where supported; no new request field or implied-mask convention is introduced.
 
-#### TC-IS1-03: Networking metadata reuses supported private Update behavior
+#### TC-IS1-03: Networking metadata reuses supported Update behavior
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -130,21 +130,21 @@ An administrator reads a private object with two ordinary and two reserved entri
 
 ##### Preconditions
 
-Fixtures cover NetworkClass, VirtualNetwork, Subnet, SecurityGroup, ExternalIPPool, ExternalIP, ExternalIPAttachment, and NATGateway in valid stored states. Record existing metadata operations, operational/default-label checks, and immutable-field restrictions.
+Fixtures cover NetworkClass, VirtualNetwork, Subnet, SecurityGroup, ExternalIPPool, ExternalIP, ExternalIPAttachment, NATGateway, and FabricDomain in valid stored states. Record existing metadata operations, operational/default-label checks, and immutable-field restrictions. The first eight have no public Update; FabricDomain has public/private Update under existing permissions.
 
 ##### Steps
 
-1. For both admins, set, change, and remove reserved entries on all eight services using fetched replacement maps and existing map-level masks. Repeat with lock omitted/false and with lock=true plus the current version.
+1. For both admins, set, change, and remove reserved entries through private Update on all nine services using fetched replacement maps and existing map-level masks. Repeat with lock omitted/false and with lock=true plus the current version.
 2. Exercise supported ordinary and mixed ordinary/reserved map edits, retaining untouched operational labels. ExternalIP, ExternalIPAttachment, and NATGateway use a nonempty ordinary mask.
 3. Attempt each recorded forbidden field/default-label change together with a reserved edit. Also omit the mandatory mask on the three lifecycle services.
-4. Verify public Update remains absent and existing controller status operations retain their behavior.
+4. Verify public Update remains absent for the first eight services. Exercise an authorized ordinary public FabricDomain Update and verify that stored reserved entries survive; retain its existing resource validators and controller status behavior.
 
 ##### Expected Results
 
-- All eight private services accept the required reserved metadata edits for both admins under their resource rules; editing metadata needs no new reserved-only mode.
+- All nine private services accept the required reserved metadata edits for both admins under their resource rules; editing metadata needs no new reserved-only mode.
 - Supported ordinary and mixed map updates remain supported. Unselected spec/status and lifecycle state remain unchanged.
 - Forbidden field/default-label changes and missing mandatory masks retain their existing errors; no subset or version change is saved.
-- Public networking Update is not introduced; existing controller status operations remain supported.
+- The first eight services gain no public Update. Existing public FabricDomain Update remains available under existing permissions and public metadata protection; its type/virtual-network immutability and status/server-list restrictions remain enforced. Controller status operations remain supported.
 
 #### TC-IS1-04: REST uses existing whole-map PATCH masks
 
@@ -281,7 +281,7 @@ An administrator reads a complete map at version v; a second authorized update c
 
 ##### Preconditions
 
-For each public metadata-bearing type, seed both maps with ordinary and reserved entries. Include nested Metadata and authorized private-service controls.
+For each of the 32 public persistent metadata-bearing types, including Volume and FabricDomain, seed both maps with ordinary and reserved entries. Include nested Metadata and authorized private-service controls.
 
 ##### Steps
 
@@ -545,11 +545,11 @@ A tenant has pending ordinary edits and an object with reserved entries. Capture
 
 ##### Preconditions
 
-A tenant-visible mutable object contains multiple ordinary/reserved entries in both maps. Capture the complete private object and its version.
+A tenant-visible mutable object contains multiple ordinary/reserved entries in both maps. Capture the complete private object and its version. Record each public wrapper's baseline unmasked map behavior; include ComputeInstance's nonempty-map merge.
 
 ##### Steps
 
-1. Replace metadata.labels, metadata.annotations, and parent metadata with existing accepted masks, and exercise the existing no-mask path where supported.
+1. Replace metadata.labels, metadata.annotations, and parent metadata with existing accepted masks. Separately exercise supported no-mask paths with nonempty, empty, and omitted maps.
 2. Send ordinary edits, empty selected maps, and omitted selected maps; verify an unselected map remains unchanged.
 3. Run an older CLI fixture that deletes an unseen reserved key locally before submitting its ordinary map, including a mixed ordinary change.
 4. Repeat accepted forms with lock omitted/false and with lock=true plus the current version; compare complete private maps/versions with the baseline ordinary replacement behavior.
@@ -557,7 +557,8 @@ A tenant-visible mutable object contains multiple ordinary/reserved entries in b
 ##### Expected Results
 
 - Every successful tenant update restores all reserved entries from the locked current row, including parent-map and unmasked replacements.
-- Ordinary omitted keys are removed as before; empty/omitted selected maps clear only ordinary entries. Unselected maps remain intact.
+- Selected-map replacement removes omitted ordinary keys; empty/omitted selected maps clear only ordinary entries. Unselected maps remain intact for masked updates.
+- Public unmasked updates retain each handler's baseline behavior. For ComputeInstance, a nonempty submitted map retains omitted ordinary keys through the existing copy/merge path; empty-map clearing follows existing behavior. Reserved entries always come from the latest locked row.
 - The older client receives success for the valid ordinary request and reports no local reserved-removal error; stored reserved entries remain unchanged. The server does not infer an explicit removal from omission.
 - Raw reserved entries still fail atomically under TC-IS3-02; merging does not silently accept a supplied forbidden key.
 
@@ -576,14 +577,14 @@ Use valid ordinary keys including osac.openshift.io/tenant and osac.openshift.io
 ##### Steps
 
 1. Evaluate admin.osac.openshift.io/key, child.admin.osac.openshift.io/key, and a.b.admin.osac.openshift.io/key. Seed them through an authorized private write and inspect public response visibility in both maps.
-2. Exercise ordinary handling and visibility for fakeadmin.osac.openshift.io/key, admin.osac.openshift.io.example/key, the slashless key admin.osac.openshift.io, and existing operational keys; separately test invalid-case/syntax inputs against the existing validator.
+2. Exercise ordinary handling and visibility for fakeadmin.osac.openshift.io/key, admin.osac.openshift.io.example/key, the slashless key admin.osac.openshift.io, and existing operational keys. Check uppercase DNS prefixes, key-name segments, and label values against existing validation; retain arbitrary annotation string values.
 3. Verify values, including empty strings, retain their established validation/storage behavior.
 
 ##### Expected Results
 
 - The base DNS namespace and every dot-delimited subdomain are reserved and omitted from public responses. Match case-sensitively without normalization; similarly named domains and slashless keys remain ordinary.
 - Operational isolation/lifecycle keys are not reclassified as reserved. Existing validation and resource-specific ownership restrictions still apply to ordinary keys.
-- Invalid keys fail under the existing syntax contract; this feature adds no broader acceptance.
+- Uppercase DNS prefixes/key-name segments and uppercase label values remain invalid; annotation values remain arbitrary strings. This feature adds no broader syntax acceptance.
 
 #### TC-IS4-03: Concurrent tenant updates preserve the latest reserved metadata
 
@@ -648,14 +649,14 @@ Use existing and older CLI fixtures against feature-enabled servers, ordinary cl
 
 1. Perform established ordinary label/annotation operations through existing clients; inspect request construction and existing mask/lock defaults.
 2. Repeat ordinary console editing on mutable public resources and inspect filtered responses.
-3. Attempt public networking Update and compare the existing absence/Unimplemented boundary.
+3. Verify public Update remains absent for NetworkClass, VirtualNetwork, Subnet, SecurityGroup, ExternalIPPool, ExternalIP, ExternalIPAttachment, and NATGateway. Exercise existing public Volume CRUD and FabricDomain Update with authorized callers and verify public metadata protection.
 4. Replay supported private networking metadata updates with existing masks and full-map requests, retaining system/default labels.
 
 ##### Expected Results
 
 - Supported ordinary operations remain available using unchanged CLI requests and existing optional lock behavior. Backend candidate handling preserves unrelated fields under the existing update semantics.
 - The new server preserves reserved entries on tenant updates. Ordinary older-server operations remain supported. Reserved writes use the existing request contract without metadata-support discovery.
-- Public networking Update remains absent. Existing private networking metadata, operational-label, immutable-field, and lifecycle-mask rules remain enforced.
+- The eight named services gain no public Update. Volume and FabricDomain keep their existing public methods and authorization. Existing private networking metadata, operational-label, immutable-field, and lifecycle-mask rules remain enforced.
 
 ### IS-5: Prefix and behavior documentation
 
@@ -702,8 +703,8 @@ Guide examples, CLI help, and API schema are available for the proposed implemen
 ##### Expected Results
 
 - Guides describe identical admin actions on all persistent types and private-only types, public privacy, and whole-request rejection for observable forbidden public input. The error is InvalidArgument with “Label or annotation is reserved for use by the system.” Existing method/object authorization and other errors are unchanged; permitted private clients retain complete metadata with no new metadata role check.
-- Examples use existing Update maps/masks and make locking optional: omitted/false requires no version precondition; true checks the supplied version. Private omission deletes while public omission preserves. A public removal whose target is discarded by the client may succeed with ordinary edits applied and reserved entries unchanged; no client check or inferred removal error is promised.
-- Guides state that privacy requires a server implementing this feature; older servers keep their existing visibility rules. Support guidance documents backend enforcement, excludes in-place upgrades, and logs no protected values.
+- Examples make update masks optional except where an existing service requires one, and keep existing lock behavior. Selected maps use replacement semantics; public reserved omissions are preserved. Unmasked public requests retain existing wrapper behavior, including ordinary-map merging where present. A discarded reserved removal target may yield success with ordinary edits applied and reserved entries unchanged; no client check or inferred removal error is promised.
+- Guides state that privacy requires a server implementing this feature; older servers keep their existing visibility rules. Support guidance excludes in-place upgrades, describes unchanged optional body logging, and omits protected values from examples/support captures. Feature-specific validation messages contain only methods and supplied key names; no new global log-redaction guarantee is claimed.
 
 ## Coverage summary and remaining work
 
@@ -731,7 +732,7 @@ Guide examples, CLI help, and API schema are available for the proposed implemen
 | G-1 | QE with console maintainers: establish a maintained browser runner, correct discovery/configuration, add deployed metadata journeys, and document the execution command | TC-IS1-06, TC-IS2-04, TC-IS3-06; browser portions of stale/error cases | Work belongs to OSAC-6204; no separate follow-up ticket has been created. Close with committed suite/runner, reproducible command, deployed four-persona results, and saved failure artifacts. |
 | G-2 | Fulfillment DEV with QE: create valid inventory fixtures and deployed identity credentials/seed setup for all 35 persistent types, both maps, both admins, both tenants, and restricted CSI identity | TC-IS1-01, TC-IS1-03, TC-IS1-05, TC-IS1-08, TC-IS2-01, TC-IS2-05, TC-IS3-01 and exhaustive regression matrix | Work belongs to OSAC-6204; no separate follow-up ticket has been created. Close with executable fixtures, explicit seeded lifecycle states, inventory completeness assertions, and real deployed transport/auth evidence. |
 
-The networking contract question reconciles the accepted metadata-immutability document with existing private metadata updates and required administrator access. TC-IS1-03 and TC-IS4-05 verify those updates with current masks and resource validation. Close any fixture-discovered mismatch without removing supported ordinary operations or adding public Update. G-1/G-2 remain delivery prerequisites for the full resource/interface scope.
+The networking contract question concerns the eight types listed in the accepted metadata-immutability document and their existing private updates. TC-IS1-03 and TC-IS4-05 verify current masks and resource validation, plus FabricDomain's existing public/private methods. Preserve supported ordinary operations and existing API availability. G-1/G-2 remain delivery prerequisites for the full resource/interface scope.
 
 ### Acceptance evidence
 

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1300" viewBox="0 0 1400 1300" role="img" aria-labelledby="title desc">
 <title id="title">Reserved labels and annotations update flow</title>
-<desc id="desc">Existing client requests pass unchanged authorization and backend public raw-input checks. The locked candidate retains stored reserved entries for public calls and replaces selected maps for private calls. Omitted reserved keys are preserved without a removal error. Valid requests persist atomically and return full private or filtered public metadata.</desc>
+<desc id="desc">Existing client requests pass unchanged authorization and backend public raw-input checks. Existing masked and unmasked map behavior is retained. The locked candidate restores reserved entries for public calls; private calls keep their existing behavior. Omitted reserved keys are preserved without a removal error. Valid requests persist atomically and return full private or filtered public metadata.</desc>
 <defs>
 <marker id="arrow-normal" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#475569"/></marker>
 <marker id="arrow-error" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#b91c1c"/></marker>
@@ -23,7 +23,7 @@
 <rect x="400" y="510" width="500" height="122" rx="16" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
 <text x="650.0" y="524.5" text-anchor="middle" dominant-baseline="central" font-family="Noto Sans, Arial, sans-serif" font-size="22" font-weight="700" fill="#0f172a">Lock row; apply existing update</text>
 <text x="650.0" y="555.5" text-anchor="middle" dominant-baseline="central" font-family="Noto Sans, Arial, sans-serif" font-size="22" font-weight="400" fill="#0f172a">Public: retain stored reserved entries</text>
-<text x="650.0" y="586.5" text-anchor="middle" dominant-baseline="central" font-family="Noto Sans, Arial, sans-serif" font-size="22" font-weight="400" fill="#0f172a">Private: replace selected maps</text>
+<text x="650.0" y="586.5" text-anchor="middle" dominant-baseline="central" font-family="Noto Sans, Arial, sans-serif" font-size="22" font-weight="400" fill="#0f172a">Private: keep existing map behavior</text>
 <text x="650.0" y="617.5" text-anchor="middle" dominant-baseline="central" font-family="Noto Sans, Arial, sans-serif" font-size="22" font-weight="400" fill="#0f172a">Keep existing resource checks</text>
 <polygon points="650,665 855,735 650,805 445,735" fill="#fff7ed" stroke="#c2410c" stroke-width="2"/>
 <text x="650" y="735.0" text-anchor="middle" dominant-baseline="central" font-family="Noto Sans, Arial, sans-serif" font-size="24" font-weight="700" fill="#0f172a">Candidate valid?</text>
