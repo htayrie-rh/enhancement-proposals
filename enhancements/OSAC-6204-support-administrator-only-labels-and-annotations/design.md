@@ -68,10 +68,9 @@ IS-1 through IS-5 identify the PRD's five In Scope bullets. These interface IDs 
 | IC-5 | Filter object responses, nested Metadata, and events | IS-2, IS-4 |
 | IC-6 | Protect filters and matching counts | IS-2, IS-4 |
 | IC-7 | Carry existing administrator authority; retain tenant/client permissions | IS-1, IS-2, IS-3 |
-| IC-8 | Update CLI validation, map submission, and compatibility checks | IS-1, IS-2, IS-3, IS-4 |
+| IC-8 | Update CLI validation, map submission, and output | IS-1, IS-2, IS-3, IS-4 |
 | IC-9 | Add the console editor and protect tenant display/search | IS-1, IS-2, IS-3, IS-4 |
 | IC-10 | Document prefix, operations, errors, and examples | IS-5 |
-| IC-11 | Advertise namespace enforcement through Capabilities.Get | IS-1, IS-3, IS-4, IS-5 |
 
 ### Implementation Details/Notes/Constraints
 
@@ -154,13 +153,12 @@ Reuse private Update for NetworkClass, VirtualNetwork, Subnet, SecurityGroup, Ex
 
 Retain supported ordinary/mixed edits, specification/status/ownership validation, system-default-label restrictions, and controller status operations. Clients retain untouched operational labels. Public networking Update stays absent; the documentation conflict remains below. [Locked: D3, D5] [User]
 
-#### CLI, console, and capabilities
+#### CLI and console
 
 - **CLI:** retain `label`/`annotate`, `key=value`, and `key-`. Validate all named operations before editing the fetched map; a forbidden set/removal, including an absent key in a mixed command, sends no Update and exits nonzero. Submit allowed changes as complete selected maps using existing update options. Private mode selects the API; server authorization decides access.
 - **Console:** add `/admin/metadata`, a type/object selector, and shared map editor for all 35 private services. Link existing detail pages; keep private-only types in administrator navigation. Use the `admins` group claim for `isPlatformAdmin` and forward the user's token. Tenant pages use filtered maps for display/search and validate named operations. Editors retain unsaved changes after errors. [Locked: D5, D6]
-- **Capabilities:** add `MetadataCapabilities metadata = 3` to CapabilitiesGetResponse, containing `string reserved_prefix = 1`. Advertise `admin.osac.openshift.io/` only with complete write/response/event/query enforcement. Updated clients require the matching prefix before reserved Create/Update; the advertisement grants no authority. [Codebase: proto/private/osac/private/v1/capabilities_service.proto]
 
-Regenerate API/UI types and update API reference, CLI help, administrator/tenant guides, and component testing maps. Reuse metadata columns/indexes, versions, and events; no database migration, CRD/controller/AAP change, or Helm setting is required.
+Refresh UI types for the existing API inventory and update API reference, CLI help, administrator/tenant guides, and component testing maps. Document the reserved namespace, subdomain matching, and server support requirement. Reuse metadata columns/indexes, versions, and events; no API field, database migration, CRD/controller/AAP change, or Helm setting is required.
 
 ### Security Considerations
 
@@ -175,7 +173,6 @@ Enforce protection on the server, independently of UI roles, headers, or reflect
 | Invalid key/mask or resource edit | Existing validation error, including `InvalidArgument`; correct input. |
 | Object outside scope | Existing denial/not-found behavior. |
 | Database/transaction failure | Existing `Internal`/`Aborted` mapping and rollback; reload before retrying. |
-| Unsupported server | Block reserved Create/Update; ordinary operations continue. |
 | Proxy/API unavailable | Show connection failure and retain edits for retry. |
 
 Tenant map omission succeeds for ordinary edits and preserves reserved entries. The server cannot infer a removal target discarded by the client. [Locked: D6]
@@ -227,11 +224,11 @@ How should the [networking design](../OSAC-1433-unified-networking/design.md#api
 
 ## Test Plan
 
-The [test plan](testplan.md) defines 29 cases covering five requirements and 11 interfaces, with commands, dependencies, and execution gaps. Implementation tests have not run.
+The [test plan](testplan.md) defines 28 cases covering five requirements and 10 interfaces, with commands, dependencies, and execution gaps. Implementation tests have not run.
 
 ### Unit Tests
 
-Prefix/validation; raw-input and named-operation rejection; map selection/preservation; version/rollback; nested projection; filter privacy; admin/capability defaults; CLI/console request and error handling.
+Prefix/validation; raw-input and named-operation rejection; map selection/preservation; version/rollback; nested projection; filter privacy; administrator authority; CLI/console request and error handling.
 
 ### Integration Tests
 
@@ -251,7 +248,7 @@ No in-place upgrades. Check imported data for prefix collisions. Before revertin
 
 ## Version Skew Strategy
 
-Older ordinary clients remain supported, but a discarded named removal cannot produce the new local error; reserved entries still survive. Updated clients require namespace enforcement before reserved writes. Console/proxy schemas must match the API; Update requests and CRDs gain no fields.
+Privacy requires a server implementing this feature; older servers retain their existing metadata visibility rules. Older ordinary clients remain supported against the new server, but a discarded named removal cannot produce the new local error; reserved entries still survive. Console/proxy schemas must match the API; Update requests and CRDs gain no fields.
 
 ## Support Procedures
 
@@ -266,6 +263,6 @@ Reuse Kind, PostgreSQL, Keycloak, and Kafka harnesses. Add the G-1 browser runne
 ## Provenance
 
 Authored: respond @ design 0.11.5 - 1c6e8de, workspace main @ f0a8211
-Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond, respond, respond, respond
+Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond, respond, respond, respond, respond
 
-<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond","respond","respond","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
+<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond","respond","respond","respond","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->

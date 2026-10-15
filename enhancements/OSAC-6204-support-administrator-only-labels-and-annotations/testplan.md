@@ -4,26 +4,28 @@
 
 - **Source:** [PRD](prd.md), its co-located clarifications, and [design draft](design.md).
 - **Status:** Planned behavioral coverage; no implementation tests were executed during drafting or this revision.
-- **Coverage:** 29 cases, five of five In Scope bullets, and 11 of 11 interface changes. Twenty-seven cases are planned for automation; two are manual documentation reviews. Browser execution and exhaustive deployed fixtures still require the work recorded under G-1 and G-2.
+- **Coverage:** 28 cases, five of five In Scope bullets, and 10 of 10 interface changes. Twenty-six cases are planned for automation; two are manual documentation reviews. Browser execution and exhaustive deployed fixtures still require the work recorded under G-1 and G-2.
 - **Target:** 0.4 Tech Preview. The networking metadata contract question must be resolved before delivery.
 
-The PRD uses In Scope bullets rather than FR/NFR identifiers. IS-1 through IS-5 below are local traceability anchors to those exact bullets, not new requirements. Implementation details such as selected-map replacement, reserved-entry preservation, capability preflight, transaction rollback, and filter projection are testable design mechanisms for those requirements.
+The PRD uses In Scope bullets rather than FR/NFR identifiers. IS-1 through IS-5 below are local traceability anchors to those exact bullets, not new requirements. Implementation details such as selected-map replacement, reserved-entry preservation, transaction rollback, and filter projection are testable design mechanisms for those requirements.
 
 ## Requirements and interface coverage
 
 | Anchor | PRD In Scope requirement | Primary cases | Design interface coverage |
 |---|---|---|---|
-| IS-1 | Both admin personas read/add/change/remove reserved metadata through private API, console, and CLI on all metadata-bearing resources | TC-IS1-01–09 | IC-1, IC-2, IC-3, IC-7, IC-8, IC-9, IC-11 |
+| IS-1 | Both admin personas read/add/change/remove reserved metadata through private API, console, and CLI on all metadata-bearing resources | TC-IS1-01–06, TC-IS1-08–09 | IC-1, IC-2, IC-3, IC-7, IC-8, IC-9 |
 | IS-2 | Tenant API responses and console omit reserved keys | TC-IS2-01–06 | IC-1, IC-2, IC-5, IC-6, IC-7, IC-8, IC-9 |
 | IS-3 | Tenant add/change/remove attempts fail the whole request clearly | TC-IS3-01–06, TC-IS3-08 | IC-1, IC-3, IC-4, IC-7, IC-8, IC-9 |
-| IS-4 | Ordinary metadata keeps its existing behavior | TC-IS4-01–05 | IC-1, IC-2, IC-3, IC-4, IC-5, IC-6, IC-8, IC-9, IC-11 |
-| IS-5 | Document exact reserved prefix and matching behavior | TC-IS5-01–02 | IC-1, IC-10, IC-11 |
+| IS-4 | Ordinary metadata keeps its existing behavior | TC-IS4-01–05 | IC-1, IC-2, IC-3, IC-4, IC-5, IC-6, IC-8, IC-9 |
+| IS-5 | Document exact reserved prefix and matching behavior | TC-IS5-01–02 | IC-1, IC-10 |
 
 Under confirmed D6, tenant map omission always preserves stored reserved entries. Named forbidden CLI/console operations fail locally before any Update; supplied reserved entries and accepted explicit protected mask paths fail on the server. A whole-map request cannot reveal a removal target that a client has already discarded.
 
 Request locking remains optional: `lock` omitted/false skips the version comparison; `lock=true` checks the supplied version. Reserved-key protection applies to both modes. Database row locking and transaction atomicity remain in use in either mode.
 
-Cases can provide evidence for several bullets; their primary anchor determines numbering only. The case metadata below lists every tested interface change. IC-1 through IC-11 refer to the design's API Extensions table.
+Cases can provide evidence for several bullets; their primary anchor determines numbering only. The case metadata below lists every tested interface change. IC-1 through IC-10 refer to the design's API Extensions table.
+
+Retired IDs: TC-IS1-07 and TC-IS3-07. Existing case IDs are not reused.
 
 ## Shared fixtures and oracles
 
@@ -53,11 +55,11 @@ Commands below describe implementation-phase execution; none was run to validate
 
 | Tier / owner | Suite and proposed additions | Working directory / execution | Real versus mocked dependencies; gaps |
 |---|---|---|---|
-| Unit / DEV | Existing fulfillment auth, validation, mapper, mask/filter, CLI, and transaction tests; add reserved predicate, capability, raw-input/explicit-path rejection, map selection/merge, client operation checks, and rollback-order cases | `osac/fulfillment-service`: `ginkgo run -r internal` (use workspace-local GOCACHE/GOTMPDIR; heavy suites sequentially) | Policy/parser/transport fixtures and test doubles. This broad command also reaches the component suites below; report their real dependencies separately. |
+| Unit / DEV | Existing fulfillment auth, validation, mapper, mask/filter, CLI, and transaction tests; add reserved predicate, raw-input/explicit-path rejection, map selection/merge, client operation checks, and rollback-order cases | `osac/fulfillment-service`: `ginkgo run -r internal` (use workspace-local GOCACHE/GOTMPDIR; heavy suites sequentially) | Policy/parser/transport fixtures and test doubles. This broad command also reaches the component suites below; report their real dependencies separately. |
 | Component integration / DEV | Existing `internal/servers/servers_suite_test.go` and server tests; add full candidate, networking metadata compatibility and lifecycle restrictions, inventory, concurrency, and error rollback cases | `osac/fulfillment-service`: `ginkgo run --timeout 10m internal/servers` | Real PostgreSQL from database.Container; in-process RPC and mocked tenancy/attribution. This does not establish deployed Keycloak, REST, proxy, or provider behavior. |
 | Events component integration / DEV | Existing `internal/servers/events_server_test.go`; add nested projection and filter privacy cases | `osac/fulfillment-service`: same server-suite command, executed once for the combined suite | Real Kafka via Kafka.Container, bufconn RPC, and mocked tenancy. Record broker startup/subscription readiness. Deployed identity coverage requires the next tier. |
 | Deployed Fulfillment integration / DEV | Extend `it/it_labels_test.go` and `it/it_annotations_test.go`; proposed `it/it_metadata_inventory_test.go` and `it/it_metadata_transport_test.go` | `osac/fulfillment-service`: `make -C ../osac-installer test PLATFORM=kind PROFILE=dev NS=osac SUITE=fulfillment` | Real deployed API, PostgreSQL, Keycloak, REST gateway, and CLI. Seed metadata fixtures; this does not prove infrastructure-provider provisioning. G-2: all 35 valid fixtures, both admin accounts, both tenant accounts, and restricted-client coverage must be added. |
-| UI unit / DEV | Existing Vitest suites/mock Connect transport; add editor, all-type registry, capabilities, tenant rendering/search, and error retention cases | `osac/osac-ui`: `pnpm test` | Mock transport/session data. Does not prove deployed proxy/API redaction or real login mapping. |
+| UI unit / DEV | Existing Vitest suites/mock Connect transport; add editor, all-type registry, tenant rendering/search, and error retention cases | `osac/osac-ui`: `pnpm test` | Mock transport/session data. Does not prove deployed proxy/API redaction or real login mapping. |
 | Proxy unit / DEV | Existing bridge/middleware tests; add existing map/mask/lock forwarding and permission/concurrency error preservation | `osac/osac-ui/proxy`: `go test ./bridge ./middleware` with workspace-local Go cache/temp | Transport/schema fixtures. Real Connect forwarding remains a deployed browser/API assertion. |
 | Deployed browser E2E / QE | Proposed maintained metadata journey suite under the mono-repo cross-component E2E structure `osac/tests/e2e/core/`; editor, all-resource registry, four personas, network response privacy, and stale/error behavior | **Runner/command must be added as part of G-1.** Existing `pnpm playwright` in `osac/osac-ui` provides scratch live-cluster investigation, not a maintained metadata suite. | Real browser, console, proxy, API, and Keycloak. A tracked login-only spec does not supply metadata coverage; current package scripts/configuration do not establish this runner. No test command is invented here. |
 | Documentation / DEV | API schema/reference, CLI help, admin and tenant guides | Manual review of TC-IS5-01 and TC-IS5-02 | Compare documented examples with the implemented contract and transport evidence. |
@@ -176,7 +178,7 @@ A mutable private object has multiple entries in both maps and a known version. 
 
 ##### Preconditions
 
-The updated CLI has private administrator credentials, sees namespace enforcement capabilities, and resolves all inventory types through existing names/aliases.
+The updated CLI has private administrator credentials against a server implementing this feature and resolves all inventory types through existing names/aliases.
 
 ##### Steps
 
@@ -213,30 +215,6 @@ Both administrators can sign in to the deployed console. Valid fixtures exist fo
 - Both personas have identical resource/action coverage; registry completeness is checked against all 35 types.
 - Editors display complete private maps and submit their edited replacements using existing update options, with no mandatory version checking. Untouched entries and unselected maps/fields remain intact.
 - Connect/proxy/API persistence and existing detail-page links reach the same shared editor.
-
-#### TC-IS1-07: Clients establish namespace enforcement before reserved writes
-
-| Interface Change | Priority | Automation |
-|---|---|---|
-| IC-8, IC-9, IC-11 | critical | automated |
-
-**Tier:** CLI/UI unit; deployed Fulfillment
-
-##### Preconditions
-
-Use new-server, capability-absent old-server, and wrong-prefix fixtures. The legacy server accepts ordinary Update shapes without privacy enforcement; record every Create/Update invocation.
-
-##### Steps
-
-1. Read Capabilities.Get from the new server and verify metadata.reserved_prefix.
-2. Attempt reserved Create/Update from updated CLI/console against absent or mismatched capabilities; cover native gRPC preflight.
-3. Perform an ordinary operation against the older-server fixture and attempt an unauthorized reserved write against the supported server.
-
-##### Expected Results
-
-- The new server advertises admin.osac.openshift.io/ as an enforced namespace, independently of caller authority.
-- Updated clients send no reserved Create/Update to an unsupported server and show a clear compatibility error; accepting whole-map requests alone is not privacy support.
-- Ordinary older-server flows remain supported. Capabilities do not grant reserved access; unauthorized input still fails.
 
 #### TC-IS1-08: Administrator authority comes from the evaluated OPA decision
 
@@ -703,7 +681,7 @@ Objects have ordinary match/nonmatch metadata and hidden reserved entries; exist
 
 | Interface Change | Priority | Automation |
 |---|---|---|
-| IC-2, IC-8, IC-9, IC-11 | high | automated |
+| IC-2, IC-8, IC-9 | high | automated |
 
 **Tier:** CLI/UI unit; deployed Fulfillment
 
@@ -721,7 +699,7 @@ Use older ordinary CLI fixtures, updated clients against legacy server fixtures,
 ##### Expected Results
 
 - Supported ordinary operations remain available; updated clients select only edited maps and preserve existing optional lock behavior without replacing unrelated fields.
-- The new server preserves reserved entries on tenant updates. Ordinary older-server operations remain supported, and capabilities do not grant permissions.
+- The new server preserves reserved entries on tenant updates. Ordinary older-server operations remain supported. Reserved writes use the existing request contract without metadata-support discovery.
 - Public networking Update remains absent. Existing private networking metadata, operational-label, immutable-field, and lifecycle-mask rules remain enforced.
 
 ### IS-5: Prefix and behavior documentation
@@ -752,7 +730,7 @@ API reference, administrator guide, and tenant guide drafts accompany the implem
 
 | Interface Change | Priority | Automation |
 |---|---|---|
-| IC-10, IC-11 | medium | manual |
+| IC-10 | medium | manual |
 
 **Tier:** Documentation review
 
@@ -763,21 +741,21 @@ Guide examples, CLI help, and API schema are available for the proposed implemen
 ##### Steps
 
 1. Review both admin journeys and both tenant expectations across API, CLI, and console.
-2. Check native gRPC, existing REST PATCH/query masks, and Connect examples for complete selected maps, omission-based deletion, empty maps/values, capability preflight, and stale versions.
+2. Check native gRPC, existing REST PATCH/query masks, and Connect examples for complete selected maps, omission-based deletion, empty maps/values, the feature-enabled server requirement, and stale versions.
 3. Check the all-resource inventory, local named-removal error, raw-input server rejection, tenant omission preservation, and older-client/server limitations.
 
 ##### Expected Results
 
 - Guides describe identical admin actions on all persistent types and private-only types, tenant privacy, and whole-request rejection for observable forbidden input.
 - Examples use existing Update maps/masks and make locking optional: omitted/false requires no version precondition; true checks the supplied version. Administrator omission deletes while tenant omission preserves. Named CLI/console removal is checked before sending a map, and discarded targets cannot be inferred by the server.
-- Support guidance requires namespace enforcement before reserved writes, documents older-client limitations, excludes in-place upgrades, and logs no protected values.
+- Guides state that privacy requires a server implementing this feature; older servers keep their existing visibility rules. Support guidance documents older-client limitations, excludes in-place upgrades, and logs no protected values.
 
 ## Coverage summary and remaining work
 
-- **29 cases:** 19 critical, 8 high, 2 medium, 0 low.
-- **Automation:** 27 planned automated cases and two manual documentation cases. A case spanning tiers requires evidence at every listed relevant boundary.
+- **28 cases:** 18 critical, 8 high, 2 medium, 0 low.
+- **Automation:** 26 planned automated cases and two manual documentation cases. A case spanning tiers requires evidence at every listed relevant boundary.
 - **Requirement coverage:** 5/5 local In Scope anchors mapped; no PRD scope bullet is omitted.
-- **Interface coverage:** 11/11 design interface IDs mapped. The table below provides an independent index.
+- **Interface coverage:** 10/10 design interface IDs mapped. The table below provides an independent index.
 
 | Interface | Cases |
 |---|---|
@@ -788,10 +766,9 @@ Guide examples, CLI help, and API schema are available for the proposed implemen
 | IC-5 | TC-IS2-01, TC-IS2-02, TC-IS2-04, TC-IS2-05, TC-IS2-06, TC-IS4-02, TC-IS4-04 |
 | IC-6 | TC-IS2-02, TC-IS2-03, TC-IS4-04 |
 | IC-7 | TC-IS1-01, TC-IS1-06, TC-IS1-08, TC-IS2-05, TC-IS3-01, TC-IS3-02 |
-| IC-8 | TC-IS1-05, TC-IS1-07, TC-IS1-09, TC-IS2-04, TC-IS3-03, TC-IS3-05, TC-IS4-05 |
-| IC-9 | TC-IS1-06, TC-IS1-07, TC-IS1-09, TC-IS2-04, TC-IS3-03, TC-IS3-06, TC-IS4-05 |
+| IC-8 | TC-IS1-05, TC-IS1-09, TC-IS2-04, TC-IS3-03, TC-IS3-05, TC-IS4-05 |
+| IC-9 | TC-IS1-06, TC-IS1-09, TC-IS2-04, TC-IS3-03, TC-IS3-06, TC-IS4-05 |
 | IC-10 | TC-IS5-01, TC-IS5-02 |
-| IC-11 | TC-IS1-07, TC-IS4-05, TC-IS5-02 |
 
 ### Execution gaps
 
