@@ -4,10 +4,10 @@
 
 - **Source:** [PRD](prd.md), its co-located clarifications, and [design draft](design.md).
 - **Status:** Planned behavioral coverage; no implementation tests were executed during drafting or this revision.
-- **Coverage:** 28 cases, five of five In Scope bullets, and 10 of 10 interface changes. Twenty-six cases are planned for automation; two are manual documentation reviews. Browser execution and exhaustive deployed fixtures still require the work recorded under G-1 and G-2.
+- **Coverage:** 27 cases, five of five In Scope bullets, and 10 of 10 interface changes. Twenty-five cases are planned for automation; two are manual documentation reviews. Browser execution and exhaustive deployed fixtures still require the work recorded under G-1 and G-2.
 - **Target:** 0.4 Tech Preview. The networking metadata contract question must be resolved before delivery.
 
-The PRD uses In Scope bullets rather than FR/NFR identifiers. IS-1 through IS-5 below are local traceability anchors to those exact bullets, not new requirements. Implementation details such as selected-map replacement, reserved-entry preservation, transaction rollback, and filter projection are testable design mechanisms for those requirements.
+The PRD uses In Scope bullets rather than FR/NFR identifiers. IS-1 through IS-5 below are local traceability anchors to those exact bullets, not new requirements. Implementation details such as selected-map replacement, reserved-entry preservation, rejection before resource writes, and filter projection are testable design mechanisms for those requirements.
 
 ## Requirements and interface coverage
 
@@ -15,7 +15,7 @@ The PRD uses In Scope bullets rather than FR/NFR identifiers. IS-1 through IS-5 
 |---|---|---|---|
 | IS-1 | Both admin personas read/add/change/remove reserved metadata through private API, console, and CLI on all metadata-bearing resources | TC-IS1-01–06, TC-IS1-08–09 | IC-1, IC-2, IC-3, IC-7, IC-8, IC-9 |
 | IS-2 | Tenant API responses and console omit reserved keys | TC-IS2-01–06 | IC-1, IC-2, IC-5, IC-6, IC-7, IC-8, IC-9 |
-| IS-3 | Tenant add/change/remove attempts fail the whole request clearly | TC-IS3-01–06, TC-IS3-08 | IC-1, IC-3, IC-4, IC-7, IC-8, IC-9 |
+| IS-3 | Tenant add/change/remove attempts fail the whole request clearly | TC-IS3-01–06 | IC-1, IC-3, IC-4, IC-7, IC-8, IC-9 |
 | IS-4 | Ordinary metadata keeps its existing behavior | TC-IS4-01–05 | IC-1, IC-2, IC-3, IC-4, IC-5, IC-6, IC-8, IC-9 |
 | IS-5 | Document exact reserved prefix and matching behavior | TC-IS5-01–02 | IC-1, IC-10 |
 
@@ -25,7 +25,7 @@ Request locking remains optional: `lock` omitted/false skips the version compari
 
 Cases can provide evidence for several bullets; their primary anchor determines numbering only. The case metadata below lists every tested interface change. IC-1 through IC-10 refer to the design's API Extensions table.
 
-Retired IDs: TC-IS1-07 and TC-IS3-07. Existing case IDs are not reused.
+Retired IDs: TC-IS1-07, TC-IS3-07, and TC-IS3-08. Existing case IDs are not reused.
 
 ## Shared fixtures and oracles
 
@@ -55,8 +55,8 @@ Commands below describe implementation-phase execution; none was run to validate
 
 | Tier / owner | Suite and proposed additions | Working directory / execution | Real versus mocked dependencies; gaps |
 |---|---|---|---|
-| Unit / DEV | Existing fulfillment auth, validation, mapper, mask/filter, CLI, and transaction tests; add reserved predicate, raw-input/explicit-path rejection, map selection/merge, client operation checks, and rollback-order cases | `osac/fulfillment-service`: `ginkgo run -r internal` (use workspace-local GOCACHE/GOTMPDIR; heavy suites sequentially) | Policy/parser/transport fixtures and test doubles. This broad command also reaches the component suites below; report their real dependencies separately. |
-| Component integration / DEV | Existing `internal/servers/servers_suite_test.go` and server tests; add full candidate, networking metadata compatibility and lifecycle restrictions, inventory, concurrency, and error rollback cases | `osac/fulfillment-service`: `ginkgo run --timeout 10m internal/servers` | Real PostgreSQL from database.Container; in-process RPC and mocked tenancy/attribution. This does not establish deployed Keycloak, REST, proxy, or provider behavior. |
+| Unit / DEV | Existing fulfillment auth, validation, mapper, mask/filter, and CLI tests; add reserved predicate, raw-input/explicit-path rejection, map selection/merge, and client operation checks | `osac/fulfillment-service`: `ginkgo run -r internal` (use workspace-local GOCACHE/GOTMPDIR; heavy suites sequentially) | Policy/parser/transport fixtures and test doubles. This broad command also reaches the component suites below; report their real dependencies separately. |
+| Component integration / DEV | Existing `internal/servers/servers_suite_test.go` and server tests; add full candidate, networking metadata compatibility and lifecycle restrictions, inventory, concurrency, and rejection without resource writes | `osac/fulfillment-service`: `ginkgo run --timeout 10m internal/servers` | Real PostgreSQL from database.Container; in-process RPC and mocked tenancy/attribution. This does not establish deployed Keycloak, REST, proxy, or provider behavior. |
 | Events component integration / DEV | Existing `internal/servers/events_server_test.go`; add nested projection and filter privacy cases | `osac/fulfillment-service`: same server-suite command, executed once for the combined suite | Real Kafka via Kafka.Container, bufconn RPC, and mocked tenancy. Record broker startup/subscription readiness. Deployed identity coverage requires the next tier. |
 | Deployed Fulfillment integration / DEV | Extend `it/it_labels_test.go` and `it/it_annotations_test.go`; proposed `it/it_metadata_inventory_test.go` and `it/it_metadata_transport_test.go` | `osac/fulfillment-service`: `make -C ../osac-installer test PLATFORM=kind PROFILE=dev NS=osac SUITE=fulfillment` | Real deployed API, PostgreSQL, Keycloak, REST gateway, and CLI. Seed metadata fixtures; this does not prove infrastructure-provider provisioning. G-2: all 35 valid fixtures, both admin accounts, both tenant accounts, and restricted-client coverage must be added. |
 | UI unit / DEV | Existing Vitest suites/mock Connect transport; add editor, all-type registry, tenant rendering/search, and error retention cases | `osac/osac-ui`: `pnpm test` | Mock transport/session data. Does not prove deployed proxy/API redaction or real login mapping. |
@@ -554,30 +554,6 @@ A tenant has pending ordinary edits and an object with reserved entries. Capture
 - The editor retains unsaved changes after server/local permission failures; a locally named forbidden removal sends no Update.
 - Ordinary replacement succeeds and keeps stored reserved entries. Omission is not an explicit-removal request and does not produce a server permission error.
 
-#### TC-IS3-08: Rejected requests and returned handler errors roll back transactions
-
-| Interface Change | Priority | Automation |
-|---|---|---|
-| IC-4 | critical | automated |
-
-**Tier:** Transaction unit; real-PostgreSQL component integration
-
-##### Preconditions
-
-A real PostgreSQL test transaction can observe candidate/object writes and auxiliary dependency/reference rows. Use a handler fault fixture; do not provision external infrastructure.
-
-##### Steps
-
-1. Submit forbidden raw input that would otherwise trigger handler-level dependency creation or reference mutation.
-2. In a separate integration fixture, make the handler write test rows and then return an error through TxInterceptor.
-3. Read the object, version, and auxiliary tables from a separate transaction after completion.
-
-##### Expected Results
-
-- Forbidden input is rejected by the public handler's shared validation before resource dependency/reference mutation. Existing authentication and account provisioning behavior is unchanged.
-- The handler error is reported to the transaction before End; both test rows and object changes are rolled back. An error response never accompanies a committed partial change.
-- Real database rollback evidence is required; a mocked transaction call-order test alone is insufficient.
-
 ### IS-4: Ordinary metadata compatibility
 
 #### TC-IS4-01: Every tenant replacement preserves stored reserved entries
@@ -752,8 +728,8 @@ Guide examples, CLI help, and API schema are available for the proposed implemen
 
 ## Coverage summary and remaining work
 
-- **28 cases:** 18 critical, 8 high, 2 medium, 0 low.
-- **Automation:** 26 planned automated cases and two manual documentation cases. A case spanning tiers requires evidence at every listed relevant boundary.
+- **27 cases:** 17 critical, 8 high, 2 medium, 0 low.
+- **Automation:** 25 planned automated cases and two manual documentation cases. A case spanning tiers requires evidence at every listed relevant boundary.
 - **Requirement coverage:** 5/5 local In Scope anchors mapped; no PRD scope bullet is omitted.
 - **Interface coverage:** 10/10 design interface IDs mapped. The table below provides an independent index.
 
@@ -762,7 +738,7 @@ Guide examples, CLI help, and API schema are available for the proposed implemen
 | IC-1 | TC-IS1-01, TC-IS1-02, TC-IS2-01, TC-IS2-06, TC-IS3-01, TC-IS4-02, TC-IS5-01 |
 | IC-2 | TC-IS1-01, TC-IS1-03, TC-IS1-05, TC-IS1-06, TC-IS2-01, TC-IS4-05 |
 | IC-3 | TC-IS1-02, TC-IS1-03, TC-IS1-04, TC-IS1-05, TC-IS1-09, TC-IS3-02, TC-IS3-04, TC-IS3-06, TC-IS4-01, TC-IS4-03 |
-| IC-4 | TC-IS3-01, TC-IS3-02, TC-IS3-03, TC-IS3-04, TC-IS3-05, TC-IS3-06, TC-IS3-08, TC-IS4-01, TC-IS4-03 |
+| IC-4 | TC-IS3-01, TC-IS3-02, TC-IS3-03, TC-IS3-04, TC-IS3-05, TC-IS3-06, TC-IS4-01, TC-IS4-03 |
 | IC-5 | TC-IS2-01, TC-IS2-02, TC-IS2-04, TC-IS2-05, TC-IS2-06, TC-IS4-02, TC-IS4-04 |
 | IC-6 | TC-IS2-02, TC-IS2-03, TC-IS4-04 |
 | IC-7 | TC-IS1-01, TC-IS1-06, TC-IS1-08, TC-IS2-05, TC-IS3-01, TC-IS3-02 |

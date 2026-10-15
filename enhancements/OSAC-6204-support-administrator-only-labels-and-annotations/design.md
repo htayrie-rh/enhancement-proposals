@@ -125,9 +125,7 @@ Change GenericServer's update path:
 1. Read the stored object under the existing database row lock.
 2. Apply the existing mask or unmasked replacement to a detached candidate.
 3. For public requests, replace the candidate's reserved portion in both maps with the locked stored portion. Preserve ordinary replacement/deletion behavior. Private requests keep existing replacement semantics.
-4. Run resource preparation/validation and save using existing identity and ownership rules. Restored stored entries are trusted data; validate caller input before merging it with stored data.
-
-In TxInterceptor, call `tx.ReportError(&err)` before transaction End so returned handler errors roll back earlier writes. [Codebase: fulfillment-service/internal/servers/generic_server.go; fulfillment-service/internal/database/database_tx_interceptor.go]
+4. Run resource preparation/validation and save through the existing transaction, retaining identity and ownership checks. Restored stored entries are trusted data; validate caller input before merging it with stored data.
 
 Existing optional-lock behavior is unchanged. Reserved labels and annotations remain protected with either setting.
 
@@ -223,15 +221,15 @@ How should the [networking design](../OSAC-1433-unified-networking/design.md#api
 
 ## Test Plan
 
-The [test plan](testplan.md) defines 28 cases covering five requirements and 10 interfaces, with commands, dependencies, and execution gaps. Implementation tests have not run.
+The [test plan](testplan.md) defines 27 cases covering five requirements and 10 interfaces, with commands, dependencies, and execution gaps. Implementation tests have not run.
 
 ### Unit Tests
 
-Prefix/validation; public raw-input and named-operation rejection; map selection/preservation; version/rollback; public nested projection and filter privacy; unchanged authorization/private behavior; CLI/console request and error handling.
+Prefix/validation; public raw-input and named-operation rejection; map selection/preservation; version compatibility; public nested projection and filter privacy; unchanged authorization/private behavior; CLI/console request and error handling.
 
 ### Integration Tests
 
-All 35 types and both admins through deployed API, Keycloak, PostgreSQL, REST, and CLI. Include real database rollback/concurrency, Kafka events/filters, ordinary compatibility, and unchanged objects/versions/side effects after mixed forbidden requests.
+All 35 types and both admins through deployed API, Keycloak, PostgreSQL, REST, and CLI. Include real database concurrency, Kafka events/filters, ordinary compatibility, and unchanged objects/versions/side effects after mixed forbidden requests.
 
 ### E2E Tests
 
@@ -262,6 +260,6 @@ Reuse Kind, PostgreSQL, Keycloak, and Kafka harnesses. Add the G-1 browser runne
 ## Provenance
 
 Authored: respond @ design 0.11.5 - 1c6e8de, workspace main @ f0a8211
-Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond, respond, respond, respond, respond, respond, respond
+Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond, respond, respond, respond, respond, respond, respond, respond
 
-<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond","respond","respond","respond","respond","respond","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
+<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond","respond","respond","respond","respond","respond","respond","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
