@@ -13,7 +13,7 @@ The PRD uses In Scope bullets rather than FR/NFR identifiers. IS-1 through IS-5 
 
 | Anchor | PRD In Scope requirement | Primary cases | Design interface coverage |
 |---|---|---|---|
-| IS-1 | Both admin personas read/add/change/remove reserved metadata through private API, console, and CLI on all metadata-bearing resources | TC-IS1-01–06, TC-IS1-08–09 | IC-1, IC-2, IC-3, IC-7, IC-9 |
+| IS-1 | Administrators with existing permissions read/add/change/remove reserved metadata through private API, console, and CLI on all metadata-bearing resources | TC-IS1-01–06, TC-IS1-08–09 | IC-1, IC-2, IC-3, IC-7, IC-9 |
 | IS-2 | Tenant API responses and console omit reserved keys | TC-IS2-01–06 | IC-1, IC-2, IC-5, IC-6, IC-7, IC-9 |
 | IS-3 | Forbidden input observable in tenant requests fails the whole request clearly; omission preserves reserved entries [D7] | TC-IS3-01–02, TC-IS3-04–06 | IC-1, IC-3, IC-4, IC-7, IC-9 |
 | IS-4 | Ordinary metadata keeps its existing behavior | TC-IS4-01–05 | IC-1, IC-2, IC-3, IC-4, IC-5, IC-6, IC-9 |
@@ -29,7 +29,7 @@ Retired IDs: TC-IS1-07, TC-IS3-03, TC-IS3-07, and TC-IS3-08. IC-8 is retired bec
 
 ## Shared fixtures and oracles
 
-Use two accounts representing Cloud Provider Admin and Cloud Infrastructure Admin with the existing platform-admin authorization, plus Tenant Admin and Tenant User accounts with their existing roles. No new persona roles or account-provisioning workflow are needed. Include a second tenant for isolation controls and the existing restricted private CSI identity. Preserve existing method/object authorization for each account; metadata rules depend on the API view. Both admin personas must pass the same matrix; public tenant cases run as both tenant personas where the method is authorized for ordinary use.
+Use an administrator account with existing platform-admin authorization, plus Tenant Admin and Tenant User accounts with their existing roles. Include a second tenant for isolation controls and the existing restricted private CSI identity. Preserve existing method/object authorization for each account; metadata rules depend on the API view. Exercise the administrator through private and public APIs, and run public tenant cases as both tenant personas where the method is authorized for ordinary use. [D8]
 
 Seed valid stored dependencies for every object type. Use ordinary keys such as `example.org/environment` and reserved keys such as `admin.osac.openshift.io/tracking-id` in both maps, with unique marker values to detect disclosure. Include empty strings, multiple entries, and objects without protected entries. Do not rely on external provider provisioning to test a metadata edit; explicitly record seeded lifecycle/readiness states and the fact that no provider provisioning boundary is exercised.
 
@@ -39,7 +39,7 @@ Reserved-key public input returns InvalidArgument with “Label or annotation is
 
 ### Persistent resource inventory
 
-| Family | Types requiring both admin personas, both maps, and private Get/List/Update coverage |
+| Family | Types requiring authorized private Get/List/Update coverage for both maps |
 |---|---|
 | Add-ons | AddOnOperator |
 | Clusters | Cluster, ClusterTemplate, ClusterCatalogItem, ClusterVersion |
@@ -60,19 +60,19 @@ Commands below describe implementation-phase execution; none was run to validate
 | Unit / DEV | Existing fulfillment auth, validation, mapper, mask/filter, and CLI tests; add reserved predicate, raw-input/explicit-path rejection, map selection/merge, and existing-client compatibility coverage | `osac/fulfillment-service`: `ginkgo run -r internal` (use workspace-local GOCACHE/GOTMPDIR; heavy suites sequentially) | Policy/parser/transport fixtures and test doubles. This broad command also reaches the component suites below; report their real dependencies separately. |
 | Component integration / DEV | Existing `internal/servers/servers_suite_test.go` and server tests; add full candidate, networking metadata compatibility and lifecycle restrictions, inventory, concurrency, and rejection without resource writes | `osac/fulfillment-service`: `ginkgo run --timeout 10m internal/servers` | Real PostgreSQL from database.Container; in-process RPC and mocked tenancy/attribution. This does not establish deployed Keycloak, REST, proxy, or provider behavior. |
 | Events component integration / DEV | Existing `internal/servers/events_server_test.go`; add nested projection and filter privacy cases | `osac/fulfillment-service`: same server-suite command, executed once for the combined suite | Real Kafka via Kafka.Container, bufconn RPC, and mocked tenancy. Record broker startup/subscription readiness. Deployed identity coverage requires the next tier. |
-| Deployed Fulfillment integration / DEV | Extend `it/it_labels_test.go` and `it/it_annotations_test.go`; proposed `it/it_metadata_inventory_test.go` and `it/it_metadata_transport_test.go` | `osac/fulfillment-service`: `make -C ../osac-installer test PLATFORM=kind PROFILE=dev NS=osac SUITE=fulfillment` | Real deployed API, PostgreSQL, Keycloak, REST gateway, and CLI. Seed metadata fixtures; this does not prove infrastructure-provider provisioning. G-2: all 35 valid fixtures, both admin accounts, both tenant accounts, and restricted-client coverage must be added. |
+| Deployed Fulfillment integration / DEV | Extend `it/it_labels_test.go` and `it/it_annotations_test.go`; proposed `it/it_metadata_inventory_test.go` and `it/it_metadata_transport_test.go` | `osac/fulfillment-service`: `make -C ../osac-installer test PLATFORM=kind PROFILE=dev NS=osac SUITE=fulfillment` | Real deployed API, PostgreSQL, Keycloak, REST gateway, and CLI. Seed metadata fixtures; this does not prove infrastructure-provider provisioning. G-2: all 35 valid fixtures, an authorized administrator, both tenant accounts, and restricted-client coverage must be added. |
 | UI unit / DEV | Existing Vitest suites/mock Connect transport; add editor, all-type registry, tenant rendering/search, and error retention cases | `osac/osac-ui`: `pnpm test` | Mock transport/session data. Does not prove deployed proxy/API redaction or real login mapping. |
 | Proxy unit / DEV | Existing bridge/middleware tests; cover map/mask/lock forwarding and InvalidArgument/concurrency error preservation | `osac/osac-ui/proxy`: `go test ./bridge ./middleware` with workspace-local Go cache/temp | Transport/schema fixtures. Real Connect forwarding remains a deployed browser/API assertion. |
-| Deployed browser E2E / QE | Proposed maintained metadata journey suite under the mono-repo cross-component E2E structure `osac/tests/e2e/core/`; editor, all-resource registry, four personas, network response privacy, and stale/error behavior | **Runner/command must be added as part of G-1.** Existing `pnpm playwright` in `osac/osac-ui` provides scratch live-cluster investigation, not a maintained metadata suite. | Real browser, console, proxy, API, and Keycloak. A tracked login-only spec does not supply metadata coverage; current package scripts/configuration do not establish this runner. No test command is invented here. |
+| Deployed browser E2E / QE | Proposed maintained metadata journey suite under the mono-repo cross-component E2E structure `osac/tests/e2e/core/`; editor, all-resource registry, administrator and tenant accounts, network response privacy, and stale/error behavior | **Runner/command must be added as part of G-1.** Existing `pnpm playwright` in `osac/osac-ui` provides scratch live-cluster investigation, not a maintained metadata suite. | Real browser, console, proxy, API, and Keycloak. A tracked login-only spec does not supply metadata coverage; current package scripts/configuration do not establish this runner. No test command is invented here. |
 | Documentation / DEV | API schema/reference, CLI help, admin and tenant guides | Manual review of TC-IS5-01 and TC-IS5-02 | Compare documented examples with the implemented contract and transport evidence. |
 
 Remote integration or E2E execution must follow `~/.codex/skills/remote-integration-tests/SKILL.md`, including fresh-cluster, detached-run, resource-limit, routing, result-recovery, and cleanup requirements. This revision does not initiate an execution environment.
 
 ## Test Cases
 
-### IS-1: Equal administrator metadata management
+### IS-1: Administrator metadata management
 
-#### TC-IS1-01: Both administrator personas manage every persistent metadata type
+#### TC-IS1-01: Authorized private calls manage every persistent metadata type
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -82,17 +82,17 @@ Remote integration or E2E execution must follow `~/.codex/skills/remote-integrat
 
 ##### Preconditions
 
-For each of the 35 persistent types, seed valid dependencies and an object with ordinary entries in both maps. Both administrator accounts have the reviewed platform-admin authority.
+For each of the 35 persistent types, seed valid dependencies and an object with ordinary entries in both maps. The administrator account has existing platform-admin authority.
 
 ##### Steps
 
-1. For each administrator, type, and map, Create with a reserved entry where supported, then Get/List through its private service.
+1. For each type and map, use the authorized administrator to Create with a reserved entry where supported, then Get/List through its private service.
 2. Read the full map, change a reserved value and add a second reserved key, then remove each by omission from a replacement map. Select the edited map with the existing update_mask. Repeat with lock omitted/false and with lock=true plus the current version.
 3. Compare ordinary entries, reserved values, identifier, and version after each mutation using an authorized private read.
 
 ##### Expected Results
 
-- Every supported Create/Update succeeds for both personas and both maps; private Get/List include exact reserved keys and values.
+- Every supported Create/Update succeeds for the authorized caller and both maps; private Get/List include exact reserved keys and values.
 - All 35 persistent types have private Update coverage, including private-only types. Clients retain untouched entries and fields.
 
 #### TC-IS1-02: Administrator map replacement, empty values, and deletion by omission
@@ -134,14 +134,14 @@ Fixtures cover NetworkClass, VirtualNetwork, Subnet, SecurityGroup, ExternalIPPo
 
 ##### Steps
 
-1. For both admins, set, change, and remove reserved entries through private Update on all nine services using fetched replacement maps and existing map-level masks. Repeat with lock omitted/false and with lock=true plus the current version.
+1. Using the authorized administrator, set, change, and remove reserved entries through private Update on all nine services using fetched replacement maps and existing map-level masks. Repeat with lock omitted/false and with lock=true plus the current version.
 2. Exercise supported ordinary and mixed ordinary/reserved map edits, retaining untouched operational labels. ExternalIP, ExternalIPAttachment, and NATGateway use a nonempty ordinary mask.
 3. Attempt each recorded forbidden field/default-label change together with a reserved edit. Also omit the mandatory mask on the three lifecycle services.
 4. Verify public Update remains absent for the first eight services. Exercise an authorized ordinary public FabricDomain Update and verify that stored reserved entries survive; retain its existing resource validators and controller status behavior.
 
 ##### Expected Results
 
-- All nine private services accept the required reserved metadata edits for both admins under their resource rules; editing metadata needs no new reserved-only mode.
+- All nine private services accept the required reserved metadata edits under existing method/object permissions and resource rules; editing metadata needs no new reserved-only mode.
 - Supported ordinary and mixed map updates remain supported. Unselected spec/status and lifecycle state remain unchanged.
 - Forbidden field/default-label changes and missing mandatory masks retain their existing errors; no subset or version change is saved.
 - The first eight services gain no public Update. Existing public FabricDomain Update remains available under existing permissions and public metadata protection; its type/virtual-network immutability and status/server-list restrictions remain enforced. Controller status operations remain supported.
@@ -184,7 +184,7 @@ The existing CLI has private administrator credentials against a server implemen
 
 ##### Steps
 
-1. For both admins and all types, label/annotate a fetched private map using key=value and key- to set, change, and remove reserved entries.
+1. For all types, use the authorized administrator to label/annotate a fetched private map using key=value and key- to set, change, and remove reserved entries.
 2. Combine several edits, including an empty value and removal of an already-absent key; include untouched ordinary/reserved entries in the fixture.
 3. Inspect protocol-unit requests and structured/human output after the deployed command.
 
@@ -192,9 +192,9 @@ The existing CLI has private administrator credentials against a server implemen
 
 - The existing request contains the fetched object with the intended map edits. Request construction and mask/lock defaults remain unchanged; no new metadata field, mask, or version precondition is forced.
 - Untouched map entries and unrelated fields remain intact; key- deletes by omission and an empty string remains a value. Authorized absent-key removal is a no-op.
-- Private reads show reserved values; both personas have identical coverage. Alias/registry completeness failures cannot silently omit a type.
+- Authorized private reads show reserved values for every type. Alias/registry completeness failures cannot silently omit a type.
 
-#### TC-IS1-06: Console registry and editor cover all persistent types for both admins
+#### TC-IS1-06: Console registry and editor cover all persistent types under existing permissions
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -204,17 +204,17 @@ The existing CLI has private administrator credentials against a server implemen
 
 ##### Preconditions
 
-Both administrators can sign in to the deployed console. Valid fixtures exist for all 35 types; private schema/proxy support matches the API.
+The administrator can sign in to the deployed console using existing credentials. Valid fixtures exist for all 35 types; private schema/proxy support matches the API.
 
 ##### Steps
 
-1. Open /admin/metadata with each persona and enumerate every type, including private-only types and types without a dedicated detail page.
+1. Open /admin/metadata as the administrator and enumerate every type, including private-only types and types without a dedicated detail page.
 2. For each type, use both map editors to add, change, and remove a reserved entry while retaining untouched ordinary/reserved entries.
 3. Inspect Connect/proxy forwarding of full selected maps, the existing mask, and any supplied lock/version options; follow detail-page links and reload through the API. Verify this feature does not force lock=true.
 
 ##### Expected Results
 
-- Both personas have identical resource/action coverage; registry completeness is checked against all 35 types.
+- The authorized administrator can perform the required actions; registry completeness is checked against all 35 types.
 - Editors display complete private maps and submit their edited replacements using existing update options, with no mandatory version checking. Untouched entries and unselected maps/fields remain intact.
 - Connect/proxy/API persistence and existing detail-page links reach the same shared editor.
 
@@ -228,20 +228,20 @@ Both administrators can sign in to the deployed console. Valid fixtures exist fo
 
 ##### Preconditions
 
-Accounts represent both administrators, Tenant Admin, Tenant User, and the restricted private CSI client. Record their existing allowed methods, object scope, and tenant visibility as the baseline.
+Accounts cover the administrator, Tenant Admin, Tenant User, and the restricted private CSI client. Record their existing allowed methods, object scope, and tenant visibility as the baseline.
 
 ##### Steps
 
 1. Exercise allowed and disallowed private methods for each account and compare authorization with the baseline.
-2. For both administrator accounts, read and edit reserved entries through allowed private methods; repeat reads and reserved Create/Update input through corresponding public methods where they exist.
+2. As the administrator, read and edit reserved entries through allowed private methods; repeat reads and reserved Create/Update input through corresponding public methods where they exist.
 3. Verify the original public view survives in-process delegation to private handlers. Read a Volume through an allowed private CSI method as a control.
 
 ##### Expected Results
 
-- Existing method/object and tenant/project authorization is unchanged for every account. Both administrator personas keep the same existing private access; tenant identities gain no private methods.
+- Existing method/object and tenant/project authorization is unchanged for every account. Private access remains governed by existing permissions; tenant identities gain no private methods.
 - Authorized private calls retain complete metadata, including allowed CSI Volume reads. No new is_admin decision or Subject field is required.
 - Public calls return the same filtered view for every caller, including administrators, even when a public handler delegates to private code.
-- Public reserved Create/Update requests from either administrator return InvalidArgument and apply no changes or side effects. Private method access never bypasses a public call's reserved-key restriction.
+- Public reserved Create/Update requests from the administrator return InvalidArgument and apply no changes or side effects. Private method access never bypasses a public call's reserved-key restriction.
 
 #### TC-IS1-09: Optional version checks retain existing update semantics
 
@@ -696,13 +696,13 @@ Guide examples, CLI help, and API schema are available for the proposed implemen
 
 ##### Steps
 
-1. Review both admin journeys and both tenant expectations across API, CLI, and console.
+1. Review the administrator journey and both tenant expectations across API, CLI, and console.
 2. Check native gRPC, existing REST PATCH/query masks, and Connect examples for complete selected maps, omission-based deletion, empty maps/values, the feature-enabled server requirement, and stale versions.
 3. Check the all-resource inventory, backend-only enforcement, public raw-input rejection, public omission preservation, unchanged private behavior, and older-server limitations.
 
 ##### Expected Results
 
-- Guides describe identical admin actions on all persistent types and private-only types, public privacy, and whole-request rejection for observable forbidden public input. The error is InvalidArgument with “Label or annotation is reserved for use by the system.” Existing method/object authorization and other errors are unchanged; permitted private clients retain complete metadata with no new metadata role check.
+- Guides describe administrator actions under existing permissions on all persistent types and private-only types, public privacy, and whole-request rejection for observable forbidden public input. The error is InvalidArgument with “Label or annotation is reserved for use by the system.” Existing method/object authorization and other errors are unchanged; permitted private clients retain complete metadata with no new metadata role check.
 - Examples make update masks optional except where an existing service requires one, and keep existing lock behavior. Selected maps use replacement semantics; public reserved omissions are preserved. Unmasked public requests retain existing wrapper behavior, including ordinary-map merging where present. A discarded reserved removal target may yield success with ordinary edits applied and reserved entries unchanged; no client check or inferred removal error is promised.
 - Guides state that privacy requires a server implementing this feature; older servers keep their existing visibility rules. Support guidance excludes in-place upgrades, describes unchanged optional body logging, and omits protected values from examples/support captures. Feature-specific validation messages contain only methods and supplied key names; no new global log-redaction guarantee is claimed.
 
@@ -729,11 +729,11 @@ Guide examples, CLI help, and API schema are available for the proposed implemen
 
 | Gap | Required work / owner | Affected coverage | Ticket status and closure evidence |
 |---|---|---|---|
-| G-1 | QE with console maintainers: establish a maintained browser runner, correct discovery/configuration, add deployed metadata journeys, and document the execution command | TC-IS1-06, TC-IS2-04, TC-IS3-06; browser portions of stale/error cases | Work belongs to OSAC-6204; no separate follow-up ticket has been created. Close with committed suite/runner, reproducible command, deployed four-persona results, and saved failure artifacts. |
-| G-2 | Fulfillment DEV with QE: create valid inventory fixtures and deployed identity credentials/seed setup for all 35 persistent types, both maps, both admins, both tenants, and restricted CSI identity | TC-IS1-01, TC-IS1-03, TC-IS1-05, TC-IS1-08, TC-IS2-01, TC-IS2-05, TC-IS3-01 and exhaustive regression matrix | Work belongs to OSAC-6204; no separate follow-up ticket has been created. Close with executable fixtures, explicit seeded lifecycle states, inventory completeness assertions, and real deployed transport/auth evidence. |
+| G-1 | QE with console maintainers: establish a maintained browser runner, correct discovery/configuration, add deployed metadata journeys, and document the execution command | TC-IS1-06, TC-IS2-04, TC-IS3-06; browser portions of stale/error cases | Work belongs to OSAC-6204; no separate follow-up ticket has been created. Close with committed suite/runner, reproducible command, deployed administrator and tenant results, and saved failure artifacts. |
+| G-2 | Fulfillment DEV with QE: create valid inventory fixtures and deployed identity credentials/seed setup for all 35 persistent types, both maps, the authorized administrator, both tenant personas, and restricted CSI identity | TC-IS1-01, TC-IS1-03, TC-IS1-05, TC-IS1-08, TC-IS2-01, TC-IS2-05, TC-IS3-01 and exhaustive regression matrix | Work belongs to OSAC-6204; no separate follow-up ticket has been created. Close with executable fixtures, explicit seeded lifecycle states, inventory completeness assertions, and real deployed transport/auth evidence. |
 
 The networking contract question concerns the eight types listed in the accepted metadata-immutability document and their existing private updates. TC-IS1-03 and TC-IS4-05 verify current masks and resource validation, plus FabricDomain's existing public/private methods. Preserve supported ordinary operations and existing API availability. G-1/G-2 remain delivery prerequisites for the full resource/interface scope.
 
 ### Acceptance evidence
 
-Completion requires real results for the exhaustive inventory and required boundary suites, not only a case count or mocked success. Record the executed command/cwd, commit, suite/tier, account setup, real dependencies and doubles, result artifacts, and any remaining gap with its owner. Rejected reserved requests must leave the complete object/version and side effects unchanged; tenant response/filter evidence must contain no protected values. Both administrators must demonstrate the same API, CLI, and deployed console actions. Ordinary compatibility cases and the documentation reviews must pass before milestone graduation.
+Completion requires real results for the exhaustive inventory and required boundary suites, not only a case count or mocked success. Record the executed command/cwd, commit, suite/tier, account setup, real dependencies and doubles, result artifacts, and any remaining gap with its owner. Rejected reserved requests must leave the complete object/version and side effects unchanged; tenant response/filter evidence must contain no protected values. The authorized administrator must demonstrate the required API, CLI, and deployed console actions. Ordinary compatibility cases and the documentation reviews must pass before milestone graduation.

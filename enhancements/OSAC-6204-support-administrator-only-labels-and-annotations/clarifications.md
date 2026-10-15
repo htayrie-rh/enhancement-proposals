@@ -2,9 +2,10 @@
 
 ## Status
 
-- Rounds completed: 3
+- Rounds completed: 5
 - Open gaps: 0
 - Exit criteria met: Yes
+- Current administrator wording: [D8](#decision-d8) consolidates the administrator persona under existing access permissions.
 
 ## Round 1 — Scope and user-visible behavior
 
@@ -135,6 +136,16 @@ The public API rejects supplied reserved entries and accepted explicit reserved-
 #### Decision (D7)
 
 Enforce reserved labels and annotations in the backend. D7 supersedes D6's named-client rejection requirement and limits D4's clear-error guarantee to forbidden input observable in the request. Omission carries no removal intent and requires no error. Private API behavior and existing authorization remain unchanged.
+
+## Round 5 — Administrator wording
+
+### R5.Q1: Consolidate administrator references
+
+User feedback: the documents still mention two administrator personas together.
+
+#### Decision (D8)
+
+Use one Administrator persona in the current PRD and test plan. Describe private API behavior through existing method and object permissions. This consolidates D5's equivalent administrator capabilities without adding a role distinction, account-provisioning requirement, or authorization change. All resources, metadata actions, and API/CLI/console coverage remain in scope. The test plan uses an existing authorized administrator account and retains tenant and restricted-client controls.
 
 ## Remaining Gaps
 
