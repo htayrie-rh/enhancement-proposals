@@ -24,8 +24,6 @@ Reserve label and annotation keys under `admin.osac.openshift.io` and its subdom
 
 Public responses currently expose all labels and annotations, including reserved entries. Public map updates must preserve stored reserved labels and annotations.
 
-CLI removals lose their target after local map editing, so named forbidden operations must be checked before building the request. [Codebase: fulfillment-service/internal/servers/generic_mapper.go; fulfillment-service/internal/servers/generic_server.go; fulfillment-service/internal/cmd/cli/annotate/annotate_cmd.go]
-
 ### Goals
 
 - Reuse metadata maps, storage, Update requests, versions, and transactions.
@@ -42,7 +40,7 @@ CLI removals lose their target after local map editing, so named forbidden opera
 
 Private API callers read and manage reserved labels and annotations under existing method and object permissions, directly or through CLI and console. Public API responses omit them for every caller. [Locked: D3, D5]
 
-Use existing whole-map updates: private API calls replace selected maps; public API updates retain the stored reserved portion. Reject supplied forbidden keys atomically in public requests, and reject named public CLI/console operations before sending Update. [Locked: D4, D6]
+Enforce protection in the backend using existing updates: private API calls replace selected maps; public API updates retain the stored reserved portion. Reject supplied forbidden keys atomically in public requests. Omission preserves reserved entries without an error. [Locked: D4, D6, D7]
 
 ### Workflow Description
 
@@ -53,7 +51,7 @@ Use existing whole-map updates: private API calls replace selected maps; public 
 
 ![Metadata update flow: request validation, tenant reserved-entry preservation, atomic persistence, and response filtering.](assets/metadata-update-flow.png)
 
-The diagram shows the server update path and response view. Named CLI/console checks run before Update.
+The diagram shows backend validation, reserved-entry preservation, and public response filtering.
 
 ### API Extensions
 
@@ -64,11 +62,10 @@ IS-1 through IS-5 identify the PRD's five In Scope bullets. These interface IDs 
 | IC-1 | Reserve the namespace and its subdomains; keep key/value validation | IS-1, IS-2, IS-3, IS-4, IS-5 |
 | IC-2 | Cover all 35 private persistent types and supported metadata updates | IS-1, IS-2, IS-4 |
 | IC-3 | Preserve tenant reserved entries during existing masked or unmasked updates | IS-1, IS-3, IS-4 |
-| IC-4 | Reject forbidden server input and named client operations atomically | IS-3, IS-4 |
+| IC-4 | Reject forbidden input observable in public requests atomically | IS-3, IS-4 |
 | IC-5 | Filter object responses, nested Metadata, and events | IS-2, IS-4 |
 | IC-6 | Protect filters and matching counts | IS-2, IS-4 |
 | IC-7 | Preserve existing authorization; apply protection by API view | IS-1, IS-2, IS-3 |
-| IC-8 | Update CLI validation, map submission, and output | IS-1, IS-2, IS-3, IS-4 |
 | IC-9 | Add the console editor and protect tenant display/search | IS-1, IS-2, IS-3, IS-4 |
 | IC-10 | Document prefix, operations, errors, and examples | IS-5 |
 
@@ -152,8 +149,8 @@ Retain supported ordinary/mixed edits, specification/status/ownership validation
 
 #### CLI and console
 
-- **CLI:** retain `label`/`annotate`, `key=value`, and `key-`. In public mode, validate all named operations before editing the fetched map; a forbidden set/removal, including an absent key in a mixed command, sends no Update and exits nonzero. Submit allowed changes as complete selected maps using existing update options. Private mode selects the API; existing server authorization decides access.
-- **Console:** add `/admin/metadata`, a type/object selector, and shared map editor for all 35 private services. Link existing detail pages and reuse existing administrator navigation. Forward the user's token; existing private method authorization controls access, with no new metadata permission check. Public pages use filtered maps for display/search and validate named operations. Editors retain unsaved changes after errors. [Locked: D5, D6]
+- **CLI:** reuse existing `label`/`annotate`, `key=value`, `key-`, request construction, and error reporting. Backend responses provide the correct public/private view. Supplied reserved entries are rejected by the server; removals represented only by omission preserve the stored entry and may succeed. [Locked: D7]
+- **Console:** add `/admin/metadata`, a type/object selector, and shared map editor for all 35 private services. Link existing detail pages and reuse existing administrator navigation. Forward the user's token; existing private method authorization controls access. Public pages use backend-filtered maps for display/search. Editors display server errors and retain unsaved changes. [Locked: D5, D7]
 
 Refresh UI types for the existing API inventory and update API reference, CLI help, administrator/tenant guides, and component testing maps. Document the reserved namespace, subdomain matching, and server support requirement. Reuse metadata columns/indexes, versions, and events; no API field, database migration, CRD/controller/AAP change, or Helm setting is required.
 
@@ -166,13 +163,12 @@ Enforce public API protection on the server, independently of UI roles, headers,
 | Failure | Outcome and recovery |
 |---|---|
 | Forbidden server input/query | `PermissionDenied`; no changes or key-existence disclosure. Correct input/access. |
-| Named forbidden client operation | Local permission error; no Update or ordinary subset. |
 | Invalid key/mask or resource edit | Existing validation error, including `InvalidArgument`; correct input. |
 | Object outside scope | Existing denial/not-found behavior. |
 | Database/transaction failure | Existing `Internal`/`Aborted` mapping and rollback; reload before retrying. |
 | Proxy/API unavailable | Show connection failure and retain edits for retry. |
 
-Tenant map omission succeeds for ordinary edits and preserves reserved entries. The server cannot infer a removal target discarded by the client. [Locked: D6]
+Public map omission preserves reserved entries and permits ordinary edits. If the client discarded a removal target, the server cannot infer that attempt and may return success. [Locked: D6, D7]
 
 ### RBAC / Tenancy
 
@@ -188,7 +184,7 @@ Use existing RPC status metrics and logs; add no metrics or events. Log methods 
 |---|---|
 | Metadata leaks or a handler drops update controls | Cover all 35 types, nested/events, and every transport. |
 | Replacement loses entries | Retain untouched client entries and restore public callers' reserved entries from the locked row. |
-| Client discards forbidden removal intent | Validate named operations before map editing. |
+| Client discards a reserved removal target | Preserve the stored entry; document that omission may succeed with ordinary edits applied. |
 | Whole-map queries add cost | Keep literal-key indexes and inspect query plans. |
 | API view or networking behavior diverges | Preserve the original API view through delegation and retain existing networking validators. |
 
@@ -196,7 +192,7 @@ API/authentication, networking, and console maintainers review their respective 
 
 ### Drawbacks
 
-Clients must retain untouched map entries and reload after conflicts. The console registry must track new resource types. Named-removal errors require client validation; map omission alone carries no such intent.
+Clients must retain untouched map entries and reload after conflicts. The console registry must track new resource types. A reserved removal represented only by map omission may report success while leaving the stored entry unchanged.
 
 ## Alternatives (Not Implemented)
 
@@ -217,15 +213,15 @@ Clients must retain untouched map entries and reload after conflicts. The consol
 How should the [networking design](../OSAC-1433-unified-networking/design.md#api-operation-constraint) reconcile metadata immutability with existing private updates and reserved-key edits? Preserve supported ordinary operations and public immutability. [User]
 
 - **Owner:** Fulfillment Service API and networking maintainers.
-- **Impact:** IC-2, IC-3, IC-8, IC-9; TC-IS1-03 and TC-IS4-05 verify validators and lifecycle behavior.
+- **Impact:** IC-2, IC-3, IC-9; TC-IS1-03 and TC-IS4-05 verify validators and lifecycle behavior.
 
 ## Test Plan
 
-The [test plan](testplan.md) defines 27 cases covering five requirements and 10 interfaces, with commands, dependencies, and execution gaps. Implementation tests have not run.
+The [test plan](testplan.md) defines 26 cases covering five requirements and nine interfaces, with commands, dependencies, and execution gaps. Implementation tests have not run.
 
 ### Unit Tests
 
-Prefix/validation; public raw-input and named-operation rejection; map selection/preservation; version compatibility; public nested projection and filter privacy; unchanged authorization/private behavior; CLI/console request and error handling.
+Prefix/validation; public raw-input rejection; map selection/preservation; version compatibility; public nested projection and filter privacy; unchanged authorization/private behavior; CLI/console compatibility and server-error handling.
 
 ### Integration Tests
 
@@ -245,7 +241,7 @@ No in-place upgrades. Check imported data for prefix collisions. Before revertin
 
 ## Version Skew Strategy
 
-Privacy requires a server implementing this feature; older servers retain their existing metadata visibility rules. Older ordinary clients remain supported against the new server, but a discarded named removal cannot produce the new local error; reserved entries still survive. Console/proxy schemas must match the API; Update requests and CRDs gain no fields.
+Privacy requires a server implementing this feature; older servers retain their existing metadata visibility rules. Existing clients work against the new server using unchanged Update requests. Reserved entries survive public map omission. Console/proxy schemas must match the API; Update requests and CRDs gain no fields.
 
 ## Support Procedures
 
@@ -260,6 +256,6 @@ Reuse Kind, PostgreSQL, Keycloak, and Kafka harnesses. Add the G-1 browser runne
 ## Provenance
 
 Authored: respond @ design 0.11.5 - 1c6e8de, workspace main @ f0a8211
-Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond
+Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond
 
-<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
+<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->

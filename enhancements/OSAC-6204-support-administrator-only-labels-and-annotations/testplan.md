@@ -4,7 +4,7 @@
 
 - **Source:** [PRD](prd.md), its co-located clarifications, and [design draft](design.md).
 - **Status:** Planned behavioral coverage; no implementation tests were executed during drafting or this revision.
-- **Coverage:** 27 cases, five of five In Scope bullets, and 10 of 10 interface changes. Twenty-five cases are planned for automation; two are manual documentation reviews. Browser execution and exhaustive deployed fixtures still require the work recorded under G-1 and G-2.
+- **Coverage:** 26 cases, five of five In Scope bullets, and nine of nine interface changes. Twenty-four cases are planned for automation; two are manual documentation reviews. Browser execution and exhaustive deployed fixtures still require the work recorded under G-1 and G-2.
 - **Target:** 0.4 Tech Preview. The networking metadata contract question must be resolved before delivery.
 
 The PRD uses In Scope bullets rather than FR/NFR identifiers. IS-1 through IS-5 below are local traceability anchors to those exact bullets, not new requirements. Implementation details such as selected-map replacement, reserved-entry preservation, rejection before resource writes, and filter projection are testable design mechanisms for those requirements.
@@ -13,19 +13,19 @@ The PRD uses In Scope bullets rather than FR/NFR identifiers. IS-1 through IS-5 
 
 | Anchor | PRD In Scope requirement | Primary cases | Design interface coverage |
 |---|---|---|---|
-| IS-1 | Both admin personas read/add/change/remove reserved metadata through private API, console, and CLI on all metadata-bearing resources | TC-IS1-01–06, TC-IS1-08–09 | IC-1, IC-2, IC-3, IC-7, IC-8, IC-9 |
-| IS-2 | Tenant API responses and console omit reserved keys | TC-IS2-01–06 | IC-1, IC-2, IC-5, IC-6, IC-7, IC-8, IC-9 |
-| IS-3 | Tenant add/change/remove attempts fail the whole request clearly | TC-IS3-01–06 | IC-1, IC-3, IC-4, IC-7, IC-8, IC-9 |
-| IS-4 | Ordinary metadata keeps its existing behavior | TC-IS4-01–05 | IC-1, IC-2, IC-3, IC-4, IC-5, IC-6, IC-8, IC-9 |
+| IS-1 | Both admin personas read/add/change/remove reserved metadata through private API, console, and CLI on all metadata-bearing resources | TC-IS1-01–06, TC-IS1-08–09 | IC-1, IC-2, IC-3, IC-7, IC-9 |
+| IS-2 | Tenant API responses and console omit reserved keys | TC-IS2-01–06 | IC-1, IC-2, IC-5, IC-6, IC-7, IC-9 |
+| IS-3 | Forbidden input observable in tenant requests fails the whole request clearly; omission preserves reserved entries [D7] | TC-IS3-01–02, TC-IS3-04–06 | IC-1, IC-3, IC-4, IC-7, IC-9 |
+| IS-4 | Ordinary metadata keeps its existing behavior | TC-IS4-01–05 | IC-1, IC-2, IC-3, IC-4, IC-5, IC-6, IC-9 |
 | IS-5 | Document exact reserved prefix and matching behavior | TC-IS5-01–02 | IC-1, IC-10 |
 
-Under confirmed D6, public map omission always preserves stored reserved entries. Named forbidden public CLI/console operations fail locally before any Update; supplied reserved entries and accepted explicit protected mask paths fail on the public server. A whole-map request cannot reveal a removal target that a client has already discarded. Private API calls retain existing complete-map behavior under existing authorization, with no new metadata role check.
+Under D6 and D7, the backend preserves omitted reserved entries and rejects supplied reserved entries or accepted explicit protected mask targets. Existing clients perform no new reserved-key validation. If a removal target is discarded during local map editing, the request may succeed and apply ordinary edits while retaining reserved entries. D7 supersedes the earlier named-client error requirement. Private API calls retain existing complete-map behavior under existing authorization.
 
 Request locking remains optional: `lock` omitted/false skips the version comparison; `lock=true` checks the supplied version. Reserved-key protection applies to both modes. Database row locking and transaction atomicity remain in use in either mode.
 
-Cases can provide evidence for several bullets; their primary anchor determines numbering only. The case metadata below lists every tested interface change. IC-1 through IC-10 refer to the design's API Extensions table.
+Cases can provide evidence for several bullets; their primary anchor determines numbering only. The case metadata below lists every tested interface change from the design's API Extensions table.
 
-Retired IDs: TC-IS1-07, TC-IS3-07, and TC-IS3-08. Existing case IDs are not reused.
+Retired IDs: TC-IS1-07, TC-IS3-03, TC-IS3-07, and TC-IS3-08. IC-8 is retired because CLI behavior is unchanged; CLI cases verify backend enforcement through existing requests. IDs are not reused.
 
 ## Shared fixtures and oracles
 
@@ -55,7 +55,7 @@ Commands below describe implementation-phase execution; none was run to validate
 
 | Tier / owner | Suite and proposed additions | Working directory / execution | Real versus mocked dependencies; gaps |
 |---|---|---|---|
-| Unit / DEV | Existing fulfillment auth, validation, mapper, mask/filter, and CLI tests; add reserved predicate, raw-input/explicit-path rejection, map selection/merge, and client operation checks | `osac/fulfillment-service`: `ginkgo run -r internal` (use workspace-local GOCACHE/GOTMPDIR; heavy suites sequentially) | Policy/parser/transport fixtures and test doubles. This broad command also reaches the component suites below; report their real dependencies separately. |
+| Unit / DEV | Existing fulfillment auth, validation, mapper, mask/filter, and CLI tests; add reserved predicate, raw-input/explicit-path rejection, map selection/merge, and existing-client compatibility coverage | `osac/fulfillment-service`: `ginkgo run -r internal` (use workspace-local GOCACHE/GOTMPDIR; heavy suites sequentially) | Policy/parser/transport fixtures and test doubles. This broad command also reaches the component suites below; report their real dependencies separately. |
 | Component integration / DEV | Existing `internal/servers/servers_suite_test.go` and server tests; add full candidate, networking metadata compatibility and lifecycle restrictions, inventory, concurrency, and rejection without resource writes | `osac/fulfillment-service`: `ginkgo run --timeout 10m internal/servers` | Real PostgreSQL from database.Container; in-process RPC and mocked tenancy/attribution. This does not establish deployed Keycloak, REST, proxy, or provider behavior. |
 | Events component integration / DEV | Existing `internal/servers/events_server_test.go`; add nested projection and filter privacy cases | `osac/fulfillment-service`: same server-suite command, executed once for the combined suite | Real Kafka via Kafka.Container, bufconn RPC, and mocked tenancy. Record broker startup/subscription readiness. Deployed identity coverage requires the next tier. |
 | Deployed Fulfillment integration / DEV | Extend `it/it_labels_test.go` and `it/it_annotations_test.go`; proposed `it/it_metadata_inventory_test.go` and `it/it_metadata_transport_test.go` | `osac/fulfillment-service`: `make -C ../osac-installer test PLATFORM=kind PROFILE=dev NS=osac SUITE=fulfillment` | Real deployed API, PostgreSQL, Keycloak, REST gateway, and CLI. Seed metadata fixtures; this does not prove infrastructure-provider provisioning. G-2: all 35 valid fixtures, both admin accounts, both tenant accounts, and restricted-client coverage must be added. |
@@ -168,17 +168,17 @@ A mutable private object has multiple entries in both maps and a known version. 
 - Administrator replacement/clearing agrees with native gRPC. Explicit masks retain selection; unselected fields remain intact. Stale versions are rejected only when lock=true; unlocked updates require no version precondition.
 - No custom query parser or additional mask representation is required. Tenant map preservation is checked separately by TC-IS4-01.
 
-#### TC-IS1-05: CLI private metadata operations submit complete selected maps
+#### TC-IS1-05: CLI private metadata operations retain existing requests
 
 | Interface Change | Priority | Automation |
 |---|---|---|
-| IC-2, IC-3, IC-8 | high | automated |
+| IC-2, IC-3 | high | automated |
 
 **Tier:** CLI unit; deployed Fulfillment
 
 ##### Preconditions
 
-The updated CLI has private administrator credentials against a server implementing this feature and resolves all inventory types through existing names/aliases.
+The existing CLI has private administrator credentials against a server implementing this feature and resolves all inventory types through existing names/aliases.
 
 ##### Steps
 
@@ -188,7 +188,7 @@ The updated CLI has private administrator credentials against a server implement
 
 ##### Expected Results
 
-- The request contains the complete edited selected map and its existing map-level update_mask. Existing lock defaults/options are preserved; no new lock=true or version precondition is forced.
+- The existing request contains the fetched object with the intended map edits. Request construction and mask/lock defaults remain unchanged; no new metadata field, mask, or version precondition is forced.
 - Untouched map entries and unrelated fields remain intact; key- deletes by omission and an empty string remains a value. Authorized absent-key removal is a no-op.
 - Private reads show reserved values; both personas have identical coverage. Alias/registry completeness failures cannot silently omit a type.
 
@@ -245,7 +245,7 @@ Accounts represent both administrators, Tenant Admin, Tenant User, and the restr
 
 | Interface Change | Priority | Automation |
 |---|---|---|
-| IC-3, IC-8, IC-9 | high | automated |
+| IC-3, IC-9 | high | automated |
 
 **Tier:** Component integration; deployed Fulfillment; CLI/UI unit
 
@@ -345,7 +345,7 @@ Prepare otherwise identical objects with the target reserved key present and abs
 
 | Interface Change | Priority | Automation |
 |---|---|---|
-| IC-5, IC-8, IC-9 | critical | automated |
+| IC-5, IC-9 | critical | automated |
 
 **Tier:** UI unit; deployed browser E2E
 
@@ -459,30 +459,6 @@ A tenant-visible object has ordinary metadata and stored reserved entries; take 
 - All attempts return PermissionDenied based on raw supplied protected input, including unchanged values and entries outside the ordinary mask.
 - The entire stored object and version equal the pre-request snapshot; no ordinary subset is committed.
 
-#### TC-IS3-03: Named reserved removals fail in clients before map construction
-
-| Interface Change | Priority | Automation |
-|---|---|---|
-| IC-4, IC-8, IC-9 | critical | automated |
-
-**Tier:** CLI/UI unit; deployed CLI
-
-##### Preconditions
-
-Tenant clients see only ordinary maps. Prepare present/absent reserved-key fixtures, an authorized private snapshot, and a counter for outgoing Update calls.
-
-##### Steps
-
-1. Attempt a reserved key- removal in label and annotate, and inject a named removal into the console operation validator.
-2. Repeat for both maps, with the reserved key present/absent, and with an ordinary edit in the same operation.
-3. Inspect local errors, Update invocation counts, retained editor state, and the full private stored object.
-
-##### Expected Results
-
-- The client reports the reserved-operation permission error before discarding its target or constructing an Update map, regardless of stored existence.
-- No Update is sent, no ordinary subset/version change is saved, and console edits remain available for correction.
-- This local check supplies the named-removal error; server omission preservation is covered by TC-IS4-01.
-
 #### TC-IS3-04: Existing explicit mask paths cannot bypass protected targets
 
 | Interface Change | Priority | Automation |
@@ -507,11 +483,11 @@ Existing clients call public Update with ordinary update_mask; capture complete 
 - Malformed encodings retain their validation/decoding errors with no mutation; such errors are not evidence of protected-target authorization.
 - The valid omission control succeeds for ordinary edits and preserves hidden entries. No new qualified per-key grammar is added.
 
-#### TC-IS3-05: CLI mixed forbidden operations fail without partial success
+#### TC-IS3-05: Existing CLI receives backend rejection or omission preservation
 
 | Interface Change | Priority | Automation |
 |---|---|---|
-| IC-4, IC-8 | critical | automated |
+| IC-3, IC-4 | critical | automated |
 
 **Tier:** CLI unit; deployed Fulfillment
 
@@ -523,12 +499,13 @@ Tenant CLI credentials can edit ordinary metadata; reserved entries are hidden b
 
 1. Run label with an ordinary set plus reserved key- removal; repeat for annotate and an absent reserved key.
 2. Run a mixed ordinary/reserved set command, including a reserved entry with an unchanged value.
-3. Inspect exit status, stderr, Update invocation count, and the complete private stored object.
+3. Inspect outgoing requests, exit status, stderr, and the complete private stored object after each command.
 
 ##### Expected Results
 
-- Every command exits nonzero with a clear permission error and sends no Update; the target is checked before local deletion could erase it.
-- Neither ordinary changes nor version advancement persists. A forbidden absent-key removal is not reported as success.
+- A removal represented only by map omission succeeds under existing CLI behavior. The backend retains the exact stored reserved portion and applies the ordinary edit; no reserved key is deleted, regardless of stored existence.
+- Mixed ordinary/reserved set commands reach the backend with the reserved entry, return PermissionDenied through existing CLI error handling, and leave the entire stored object/version unchanged.
+- The CLI adds no reserved-key validation or special removal target. Public output remains filtered in both cases.
 
 #### TC-IS3-06: REST and Connect enforce input rejection and omission preservation
 
@@ -540,18 +517,18 @@ Tenant CLI credentials can edit ordinary metadata; reserved entries are hidden b
 
 ##### Preconditions
 
-A tenant has pending ordinary edits and an object with reserved entries. Capture its full private snapshot; UI unit fixtures can inject a named forbidden operation.
+A tenant has pending ordinary edits and an object with reserved entries. Capture its full private snapshot; transport fixtures can submit reserved entries directly to the backend.
 
 ##### Steps
 
 1. Send mixed ordinary/reserved map entries through REST and Connect/proxy, including requests crafted outside normal tenant controls.
-2. Drive the editor error component with the returned server error; separately inject a named reserved removal and inspect the local client rejection.
+2. Drive the editor error component with the returned server error and inspect retained edits and request forwarding.
 3. Submit a tenant replacement containing only ordinary entries, omitting reserved entries, then read the full private object.
 
 ##### Expected Results
 
 - Supplied reserved entries cause PermissionDenied with existing transport mappings and no object/version/side-effect changes. Neither transport strips them and retries the ordinary subset.
-- The editor retains unsaved changes after server/local permission failures; a locally named forbidden removal sends no Update.
+- The editor displays the backend error and retains unsaved changes. No client-side reserved-key validator is required.
 - Ordinary replacement succeeds and keeps stored reserved entries. Omission is not an explicit-removal request and does not produce a server permission error.
 
 ### IS-4: Ordinary metadata compatibility
@@ -657,24 +634,24 @@ Objects have ordinary match/nonmatch metadata and hidden reserved entries; exist
 
 | Interface Change | Priority | Automation |
 |---|---|---|
-| IC-2, IC-8, IC-9 | high | automated |
+| IC-2, IC-9 | high | automated |
 
 **Tier:** CLI/UI unit; deployed Fulfillment
 
 ##### Preconditions
 
-Use older ordinary CLI fixtures, updated clients against legacy server fixtures, existing ordinary console controls, public networking services, and private networking fixtures with recorded allowed metadata operations.
+Use existing and older CLI fixtures against feature-enabled servers, ordinary client fixtures against legacy servers, existing ordinary console controls, public networking services, and private networking fixtures with recorded allowed metadata operations.
 
 ##### Steps
 
-1. Perform established ordinary label/annotation operations through supported older/new clients; inspect the new clients' existing map masks and lock fields.
+1. Perform established ordinary label/annotation operations through existing clients; inspect request construction and existing mask/lock defaults.
 2. Repeat ordinary console editing on mutable public resources and inspect filtered responses.
 3. Attempt public networking Update and compare the existing absence/Unimplemented boundary.
 4. Replay supported private networking metadata updates with existing masks and full-map requests, retaining system/default labels.
 
 ##### Expected Results
 
-- Supported ordinary operations remain available; updated clients select only edited maps and preserve existing optional lock behavior without replacing unrelated fields.
+- Supported ordinary operations remain available using unchanged CLI requests and existing optional lock behavior. Backend candidate handling preserves unrelated fields under the existing update semantics.
 - The new server preserves reserved entries on tenant updates. Ordinary older-server operations remain supported. Reserved writes use the existing request contract without metadata-support discovery.
 - Public networking Update remains absent. Existing private networking metadata, operational-label, immutable-field, and lifecycle-mask rules remain enforced.
 
@@ -718,32 +695,31 @@ Guide examples, CLI help, and API schema are available for the proposed implemen
 
 1. Review both admin journeys and both tenant expectations across API, CLI, and console.
 2. Check native gRPC, existing REST PATCH/query masks, and Connect examples for complete selected maps, omission-based deletion, empty maps/values, the feature-enabled server requirement, and stale versions.
-3. Check the all-resource inventory, local named-removal error, public raw-input rejection, public omission preservation, unchanged private behavior, and older-client/server limitations.
+3. Check the all-resource inventory, backend-only enforcement, public raw-input rejection, public omission preservation, unchanged private behavior, and older-server limitations.
 
 ##### Expected Results
 
 - Guides describe identical admin actions on all persistent types and private-only types, public privacy, and whole-request rejection for observable forbidden public input. Existing method/object authorization is unchanged; permitted private clients retain complete metadata with no new metadata role check.
-- Examples use existing Update maps/masks and make locking optional: omitted/false requires no version precondition; true checks the supplied version. Private omission deletes while public omission preserves. Named public CLI/console removal is checked before sending a map, and discarded targets cannot be inferred by the server.
-- Guides state that privacy requires a server implementing this feature; older servers keep their existing visibility rules. Support guidance documents older-client limitations, excludes in-place upgrades, and logs no protected values.
+- Examples use existing Update maps/masks and make locking optional: omitted/false requires no version precondition; true checks the supplied version. Private omission deletes while public omission preserves. A public removal whose target is discarded by the client may succeed with ordinary edits applied and reserved entries unchanged; no client check or inferred removal error is promised.
+- Guides state that privacy requires a server implementing this feature; older servers keep their existing visibility rules. Support guidance documents backend enforcement, excludes in-place upgrades, and logs no protected values.
 
 ## Coverage summary and remaining work
 
-- **27 cases:** 17 critical, 8 high, 2 medium, 0 low.
-- **Automation:** 25 planned automated cases and two manual documentation cases. A case spanning tiers requires evidence at every listed relevant boundary.
+- **26 cases:** 16 critical, 8 high, 2 medium, 0 low.
+- **Automation:** 24 planned automated cases and two manual documentation cases. A case spanning tiers requires evidence at every listed relevant boundary.
 - **Requirement coverage:** 5/5 local In Scope anchors mapped; no PRD scope bullet is omitted.
-- **Interface coverage:** 10/10 design interface IDs mapped. The table below provides an independent index.
+- **Interface coverage:** 9/9 design interface IDs mapped. The table below provides an independent index.
 
 | Interface | Cases |
 |---|---|
 | IC-1 | TC-IS1-01, TC-IS1-02, TC-IS2-01, TC-IS2-06, TC-IS3-01, TC-IS4-02, TC-IS5-01 |
 | IC-2 | TC-IS1-01, TC-IS1-03, TC-IS1-05, TC-IS1-06, TC-IS2-01, TC-IS4-05 |
-| IC-3 | TC-IS1-02, TC-IS1-03, TC-IS1-04, TC-IS1-05, TC-IS1-09, TC-IS3-02, TC-IS3-04, TC-IS3-06, TC-IS4-01, TC-IS4-03 |
-| IC-4 | TC-IS3-01, TC-IS3-02, TC-IS3-03, TC-IS3-04, TC-IS3-05, TC-IS3-06, TC-IS4-01, TC-IS4-03 |
+| IC-3 | TC-IS1-02, TC-IS1-03, TC-IS1-04, TC-IS1-05, TC-IS1-09, TC-IS3-02, TC-IS3-04, TC-IS3-05, TC-IS3-06, TC-IS4-01, TC-IS4-03 |
+| IC-4 | TC-IS3-01, TC-IS3-02, TC-IS3-04, TC-IS3-05, TC-IS3-06, TC-IS4-01, TC-IS4-03 |
 | IC-5 | TC-IS2-01, TC-IS2-02, TC-IS2-04, TC-IS2-05, TC-IS2-06, TC-IS4-02, TC-IS4-04 |
 | IC-6 | TC-IS2-02, TC-IS2-03, TC-IS4-04 |
 | IC-7 | TC-IS1-01, TC-IS1-06, TC-IS1-08, TC-IS2-05, TC-IS3-01, TC-IS3-02 |
-| IC-8 | TC-IS1-05, TC-IS1-09, TC-IS2-04, TC-IS3-03, TC-IS3-05, TC-IS4-05 |
-| IC-9 | TC-IS1-06, TC-IS1-09, TC-IS2-04, TC-IS3-03, TC-IS3-06, TC-IS4-05 |
+| IC-9 | TC-IS1-06, TC-IS1-09, TC-IS2-04, TC-IS3-06, TC-IS4-05 |
 | IC-10 | TC-IS5-01, TC-IS5-02 |
 
 ### Execution gaps

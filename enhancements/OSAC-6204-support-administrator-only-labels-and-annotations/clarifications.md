@@ -118,6 +118,24 @@ Authorized private administrators continue replacing selected maps, with omitted
 
 Every tenant update retains the reserved portion of the locked stored object. Omission from a whole-map request is not reserved-key removal intent. D6 clarifies D4 for whole-map requests; explicit forbidden input and named client operations still fail without applying an ordinary subset.
 
+## Round 4 — Backend-only enforcement
+
+### R4.Q1: Should clients reject named reserved-key operations locally?
+
+The CLI discards a removal target when editing its fetched map. Should clients add validation to report this attempt, or rely on backend preservation and rejection of explicit request input?
+
+#### Answer
+
+Rely on the backend only. No client-side reserved-key validation is required.
+
+#### Impact
+
+The public API rejects supplied reserved entries and accepted explicit reserved-key targets as a whole. Omitted reserved entries are always retained from stored state. A client removal that becomes map omission may return success, and ordinary edits in that request may be applied. The reserved entry remains unchanged. Existing CLI request construction and error reporting continue to work; console clients consume backend projections and errors.
+
+#### Decision (D7)
+
+Enforce reserved labels and annotations in the backend. D7 supersedes D6's named-client rejection requirement and limits D4's clear-error guarantee to forbidden input observable in the request. Omission carries no removal intent and requires no error. Private API behavior and existing authorization remain unchanged.
+
 ## Remaining Gaps
 
 None. The exact reserved prefix and matching rules remain for the design, as specified by the source issue.
