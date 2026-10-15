@@ -35,6 +35,8 @@ Seed valid stored dependencies for every object type. Use ordinary keys such as 
 
 Before each rejected or concurrent request, obtain an authorized private snapshot of the complete stored object, maps, and metadata.version. Afterward compare the complete object and relevant side-effect tables; checking only the public response cannot detect loss or partial writes. Pair public tenant reads with private administrator reads. Capture errors without copying protected values into logs or test reports.
 
+Reserved-key public input returns InvalidArgument with “Label or annotation is reserved for use by the system.” Verify the status/message through existing gRPC, REST, Connect, CLI, and console error mappings. Existing authorization and other errors keep their current behavior; this status does not replace unrelated permission errors.
+
 ### Persistent resource inventory
 
 | Family | Types requiring both admin personas, both maps, and private Get/List/Update coverage |
@@ -60,7 +62,7 @@ Commands below describe implementation-phase execution; none was run to validate
 | Events component integration / DEV | Existing `internal/servers/events_server_test.go`; add nested projection and filter privacy cases | `osac/fulfillment-service`: same server-suite command, executed once for the combined suite | Real Kafka via Kafka.Container, bufconn RPC, and mocked tenancy. Record broker startup/subscription readiness. Deployed identity coverage requires the next tier. |
 | Deployed Fulfillment integration / DEV | Extend `it/it_labels_test.go` and `it/it_annotations_test.go`; proposed `it/it_metadata_inventory_test.go` and `it/it_metadata_transport_test.go` | `osac/fulfillment-service`: `make -C ../osac-installer test PLATFORM=kind PROFILE=dev NS=osac SUITE=fulfillment` | Real deployed API, PostgreSQL, Keycloak, REST gateway, and CLI. Seed metadata fixtures; this does not prove infrastructure-provider provisioning. G-2: all 35 valid fixtures, both admin accounts, both tenant accounts, and restricted-client coverage must be added. |
 | UI unit / DEV | Existing Vitest suites/mock Connect transport; add editor, all-type registry, tenant rendering/search, and error retention cases | `osac/osac-ui`: `pnpm test` | Mock transport/session data. Does not prove deployed proxy/API redaction or real login mapping. |
-| Proxy unit / DEV | Existing bridge/middleware tests; add existing map/mask/lock forwarding and permission/concurrency error preservation | `osac/osac-ui/proxy`: `go test ./bridge ./middleware` with workspace-local Go cache/temp | Transport/schema fixtures. Real Connect forwarding remains a deployed browser/API assertion. |
+| Proxy unit / DEV | Existing bridge/middleware tests; cover map/mask/lock forwarding and InvalidArgument/concurrency error preservation | `osac/osac-ui/proxy`: `go test ./bridge ./middleware` with workspace-local Go cache/temp | Transport/schema fixtures. Real Connect forwarding remains a deployed browser/API assertion. |
 | Deployed browser E2E / QE | Proposed maintained metadata journey suite under the mono-repo cross-component E2E structure `osac/tests/e2e/core/`; editor, all-resource registry, four personas, network response privacy, and stale/error behavior | **Runner/command must be added as part of G-1.** Existing `pnpm playwright` in `osac/osac-ui` provides scratch live-cluster investigation, not a maintained metadata suite. | Real browser, console, proxy, API, and Keycloak. A tracked login-only spec does not supply metadata coverage; current package scripts/configuration do not establish this runner. No test command is invented here. |
 | Documentation / DEV | API schema/reference, CLI help, admin and tenant guides | Manual review of TC-IS5-01 and TC-IS5-02 | Compare documented examples with the implemented contract and transport evidence. |
 
@@ -239,7 +241,7 @@ Accounts represent both administrators, Tenant Admin, Tenant User, and the restr
 - Existing method/object and tenant/project authorization is unchanged for every account. Both administrator personas keep the same existing private access; tenant identities gain no private methods.
 - Authorized private calls retain complete metadata, including allowed CSI Volume reads. No new is_admin decision or Subject field is required.
 - Public calls return the same filtered view for every caller, including administrators, even when a public handler delegates to private code.
-- Public reserved Create/Update requests from either administrator return PermissionDenied and apply no changes or side effects. Private method access never bypasses a public call's reserved-key restriction.
+- Public reserved Create/Update requests from either administrator return InvalidArgument and apply no changes or side effects. Private method access never bypasses a public call's reserved-key restriction.
 
 #### TC-IS1-09: Optional version checks retain existing update semantics
 
@@ -337,7 +339,7 @@ Prepare otherwise identical objects with the target reserved key present and abs
 
 ##### Expected Results
 
-- Every explicit protected-key reference returns PermissionDenied uniformly before item/count SQL or subscription filtering, independent of stored existence.
+- Every explicit protected-key reference returns InvalidArgument uniformly before item/count SQL or subscription filtering, independent of stored existence.
 - Already-supported whole-map predicates evaluate only visible metadata and return matching counts; unsupported syntax retains its existing error rather than gaining a new query operator.
 - Ordinary literal-key predicates retain the existing indexed query path.
 
@@ -408,7 +410,7 @@ SelfSubjectAccessReview is an ephemeral message carrying Metadata, not one of th
 ##### Expected Results
 
 - Ordinary review behavior remains unchanged. Public outputs omit reserved entries wherever Metadata occurs; allowed private review calls retain existing complete-map behavior.
-- Public reserved input is rejected before review processing. Private method authorization remains unchanged. The test does not invent Get/List/Update or persistence for the ephemeral review.
+- Public reserved input returns InvalidArgument before review processing, with the shared reserved-for-system message. Private method authorization remains unchanged. The test does not invent Get/List/Update or persistence for the ephemeral review.
 
 ### IS-3: Atomic rejection of tenant mutations
 
@@ -432,7 +434,7 @@ Both tenant personas have valid create permissions on representative mutable ser
 
 ##### Expected Results
 
-- Every forbidden request returns PermissionDenied and creates no object, ordinary metadata, version, reference, or provisioning side effect.
+- Every forbidden request returns InvalidArgument and creates no object, ordinary metadata, version, reference, or provisioning side effect.
 - The error identifies the protected-target rule without revealing stored reserved values. Ordinary create requests remain covered by compatibility cases.
 
 #### TC-IS3-02: Tenant Update cannot add or overwrite a reserved entry
@@ -456,7 +458,7 @@ A tenant-visible object has ordinary metadata and stored reserved entries; take 
 
 ##### Expected Results
 
-- All attempts return PermissionDenied based on raw supplied protected input, including unchanged values and entries outside the ordinary mask.
+- All attempts return InvalidArgument based on raw supplied protected input, including unchanged values and entries outside the ordinary mask.
 - The entire stored object and version equal the pre-request snapshot; no ordinary subset is committed.
 
 #### TC-IS3-04: Existing explicit mask paths cannot bypass protected targets
@@ -479,8 +481,8 @@ Existing clients call public Update with ordinary update_mask; capture complete 
 
 ##### Expected Results
 
-- Accepted explicit protected paths return PermissionDenied before mutation, regardless of key existence; ordinary changes and versions remain unchanged.
-- Malformed encodings retain their validation/decoding errors with no mutation; such errors are not evidence of protected-target authorization.
+- Accepted explicit protected paths return InvalidArgument before mutation, regardless of key existence; ordinary changes and versions remain unchanged.
+- Malformed encodings retain their validation/decoding errors with no mutation; these are separate from reserved-key input validation.
 - The valid omission control succeeds for ordinary edits and preserves hidden entries. No new qualified per-key grammar is added.
 
 #### TC-IS3-05: Existing CLI receives backend rejection or omission preservation
@@ -504,7 +506,7 @@ Tenant CLI credentials can edit ordinary metadata; reserved entries are hidden b
 ##### Expected Results
 
 - A removal represented only by map omission succeeds under existing CLI behavior. The backend retains the exact stored reserved portion and applies the ordinary edit; no reserved key is deleted, regardless of stored existence.
-- Mixed ordinary/reserved set commands reach the backend with the reserved entry, return PermissionDenied through existing CLI error handling, and leave the entire stored object/version unchanged.
+- Mixed ordinary/reserved set commands reach the backend with the reserved entry, return InvalidArgument through existing CLI error handling, and leave the entire stored object/version unchanged.
 - The CLI adds no reserved-key validation or special removal target. Public output remains filtered in both cases.
 
 #### TC-IS3-06: REST and Connect enforce input rejection and omission preservation
@@ -527,9 +529,9 @@ A tenant has pending ordinary edits and an object with reserved entries. Capture
 
 ##### Expected Results
 
-- Supplied reserved entries cause PermissionDenied with existing transport mappings and no object/version/side-effect changes. Neither transport strips them and retries the ordinary subset.
+- Supplied reserved entries cause InvalidArgument with existing transport mappings and no object/version/side-effect changes. Neither transport strips them and retries the ordinary subset.
 - The editor displays the backend error and retains unsaved changes. No client-side reserved-key validator is required.
-- Ordinary replacement succeeds and keeps stored reserved entries. Omission is not an explicit-removal request and does not produce a server permission error.
+- Ordinary replacement succeeds and keeps stored reserved entries. Omission is not an explicit-removal request and does not produce a reserved-key error.
 
 ### IS-4: Ordinary metadata compatibility
 
@@ -699,7 +701,7 @@ Guide examples, CLI help, and API schema are available for the proposed implemen
 
 ##### Expected Results
 
-- Guides describe identical admin actions on all persistent types and private-only types, public privacy, and whole-request rejection for observable forbidden public input. Existing method/object authorization is unchanged; permitted private clients retain complete metadata with no new metadata role check.
+- Guides describe identical admin actions on all persistent types and private-only types, public privacy, and whole-request rejection for observable forbidden public input. The error is InvalidArgument with “Label or annotation is reserved for use by the system.” Existing method/object authorization and other errors are unchanged; permitted private clients retain complete metadata with no new metadata role check.
 - Examples use existing Update maps/masks and make locking optional: omitted/false requires no version precondition; true checks the supplied version. Private omission deletes while public omission preserves. A public removal whose target is discarded by the client may succeed with ordinary edits applied and reserved entries unchanged; no client check or inferred removal error is promised.
 - Guides state that privacy requires a server implementing this feature; older servers keep their existing visibility rules. Support guidance documents backend enforcement, excludes in-place upgrades, and logs no protected values.
 

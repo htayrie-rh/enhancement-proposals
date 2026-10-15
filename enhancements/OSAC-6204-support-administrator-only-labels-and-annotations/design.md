@@ -100,9 +100,9 @@ The public API hides reserved labels and annotations and rejects their explicit 
 | Original API view | Reserved metadata |
 |---|---|
 | Private, any caller with existing method/object permission | Complete maps; existing read/write behavior |
-| Public, any caller, including administrators | Hidden; explicit writes denied |
+| Public, any caller, including administrators | Hidden; explicit writes rejected |
 
-Keep shared reserved-key validation and map-preservation helpers with GenericServer. Public Create/Update handlers validate the original request before mapping or delegation, ahead of handler-level dependency creation or reference mutation. Reject every supplied reserved entry or accepted explicit reserved-key mask path with `PermissionDenied`, including unchanged values, absent targets, nested Metadata, and keys outside the mask. Preserve that error through the public handler; apply no ordinary subset. Private Create/Update retains existing behavior. [Locked: D4]
+Keep shared reserved-key validation and map-preservation helpers with GenericServer. Public Create/Update handlers validate the original request before mapping or delegation, ahead of handler-level dependency creation or reference mutation. Reject every supplied reserved entry or accepted explicit reserved-key mask path with `InvalidArgument`, including unchanged values, absent targets, nested Metadata, and keys outside the mask. Preserve that error through the public handler; apply no ordinary subset. Private Create/Update retains existing behavior. [Locked: D4]
 
 #### Whole-map Update
 
@@ -139,7 +139,7 @@ This replaces labels under the map rules; an empty map clears the permitted port
 
 Use GenericMapper's existing private-to-public path to omit reserved entries recursively from actual Metadata messages in Get/List, Create/Update responses, nested objects, and streams. Leave private responses, unrelated maps, and internal/stored objects intact. Public Events.Watch uses the same projection before evaluating predicates. SelfSubjectAccessReview uses shared input validation in its public handler and the same response mapping, without persistent CRUD. [Codebase: fulfillment-service/internal/servers/generic_mapper.go; fulfillment-service/internal/servers/events_server.go; fulfillment-service/internal/servers/self_subject_access_reviews_server.go]
 
-For public queries, inspect parsed, type-checked CEL filters. Explicit reserved-key references, membership checks, and mixed predicates return `PermissionDenied` before item/count SQL, independent of key existence. Evaluate supported whole-map predicates against JSONB with reserved entries excluded; keep ordinary literal-key indexed SQL and existing unsupported-operator errors. Private queries keep existing access to complete maps. [Codebase: fulfillment-service/internal/database/dao/filter_translator.go]
+For public queries, inspect parsed, type-checked CEL filters. Explicit reserved-key references, membership checks, and mixed predicates return `InvalidArgument` before item/count SQL, independent of key existence. Evaluate supported whole-map predicates against JSONB with reserved entries excluded; keep ordinary literal-key indexed SQL and existing unsupported-operator errors. Private queries keep existing access to complete maps. [Codebase: fulfillment-service/internal/database/dao/filter_translator.go]
 
 #### Private networking Updates
 
@@ -160,13 +160,7 @@ Enforce public API protection on the server, independently of UI roles, headers,
 
 ### Failure Handling and Recovery
 
-| Failure | Outcome and recovery |
-|---|---|
-| Forbidden server input/query | `PermissionDenied`; no changes or key-existence disclosure. Correct input/access. |
-| Invalid key/mask or resource edit | Existing validation error, including `InvalidArgument`; correct input. |
-| Object outside scope | Existing denial/not-found behavior. |
-| Database/transaction failure | Existing `Internal`/`Aborted` mapping and rollback; reload before retrying. |
-| Proxy/API unavailable | Show connection failure and retain edits for retry. |
+Reject reserved-key input in a public request with `InvalidArgument`: “Label or annotation is reserved for use by the system.” Apply no changes and disclose no stored values. Existing authorization, validation, concurrency, and infrastructure errors retain their behavior.
 
 Public map omission preserves reserved entries and permits ordinary edits. If the client discarded a removal target, the server cannot infer that attempt and may return success. [Locked: D6, D7]
 
@@ -256,6 +250,6 @@ Reuse Kind, PostgreSQL, Keycloak, and Kafka harnesses. Add the G-1 browser runne
 ## Provenance
 
 Authored: respond @ design 0.11.5 - 1c6e8de, workspace main @ f0a8211
-Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond
+Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond, respond
 
-<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
+<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
