@@ -40,13 +40,13 @@ CLI removals lose their target after local map editing, so named forbidden opera
 
 ## Proposal
 
-Both Cloud Provider Admin and Cloud Infrastructure Admin manage reserved metadata on all covered resources through the private API, CLI, and console. Tenant views omit it. [Locked: D3, D5]
+Private API callers read and manage reserved labels and annotations under existing method and object permissions, directly or through CLI and console. Public API responses omit them for every caller. [Locked: D3, D5]
 
 Use existing whole-map updates: private API calls replace selected maps; public API updates retain the stored reserved portion. Reject supplied forbidden keys atomically in public requests, and reject named public CLI/console operations before sending Update. [Locked: D4, D6]
 
 ### Workflow Description
 
-1. An administrator selects an object through private Get/List, `osac login --private`, or `/admin/metadata`.
+1. A user with existing private API access selects an object through private Get/List, `osac login --private`, or `/admin/metadata`.
 2. The client reads its complete maps, then edits a copy while retaining untouched entries.
 3. Submit the changed maps, object ID, and existing `update_mask`.
 4. The server validates and saves atomically, returning the private view.
@@ -176,7 +176,7 @@ Tenant map omission succeeds for ordinary edits and preserves reserved entries. 
 
 ### RBAC / Tenancy
 
-Reuse existing method/object, tenant/project, and trusted controller permissions. Both admin personas have identical coverage. Reserved-key rules depend on the original public/private API view, with no additional role check. Retain tenant and owner-reference isolation annotations. No new roles or resources are added. [Locked: D5]
+Reuse existing method/object, tenant/project, and trusted controller permissions. Reserved-key rules depend on the original public/private API view, with no additional role check. Retain tenant and owner-reference isolation annotations. No new roles or resources are added. [Locked: D5]
 
 ### Observability and Monitoring
 
@@ -214,7 +214,7 @@ Clients must retain untouched map entries and reload after conflicts. The consol
 
 ### 1. Networking metadata contract
 
-How should the [networking design](../OSAC-1433-unified-networking/design.md#api-operation-constraint) reconcile metadata immutability with existing private updates and required administrator edits? Preserve supported ordinary operations and public immutability. [User]
+How should the [networking design](../OSAC-1433-unified-networking/design.md#api-operation-constraint) reconcile metadata immutability with existing private updates and reserved-key edits? Preserve supported ordinary operations and public immutability. [User]
 
 - **Owner:** Fulfillment Service API and networking maintainers.
 - **Impact:** IC-2, IC-3, IC-8, IC-9; TC-IS1-03 and TC-IS4-05 verify validators and lifecycle behavior.
@@ -229,11 +229,11 @@ Prefix/validation; public raw-input and named-operation rejection; map selection
 
 ### Integration Tests
 
-All 35 types and both admins through deployed API, Keycloak, PostgreSQL, REST, and CLI. Include real database concurrency, Kafka events/filters, ordinary compatibility, and unchanged objects/versions/side effects after mixed forbidden requests.
+All 35 types through deployed API, Keycloak, PostgreSQL, REST, and CLI under existing permissions. Include real database concurrency, Kafka events/filters, ordinary compatibility, and unchanged objects/versions/side effects after mixed forbidden requests.
 
 ### E2E Tests
 
-Both admins edit through the deployed console/proxy/API; Tenant Admin and Tenant User receive no reserved data. Add maintained browser coverage (G-1) and complete resource/identity fixtures (G-2), including restricted CSI.
+Exercise private edits and public response privacy through the deployed console/proxy/API. Add maintained browser coverage (G-1) and complete resource/identity fixtures (G-2), including restricted CSI.
 
 ## Graduation Criteria
 
@@ -253,13 +253,13 @@ Inspect RPC status/logs and authorized private Get without logging values. Corre
 
 ## Infrastructure Needed
 
-Reuse Kind, PostgreSQL, Keycloak, and Kafka harnesses. Add the G-1 browser runner and G-2 resource/persona fixtures; owners and closure evidence are in the test plan. No new production infrastructure is needed.
+Reuse Kind, PostgreSQL, Keycloak, and Kafka harnesses. Add the G-1 browser runner and G-2 resource/identity fixtures; owners and closure evidence are in the test plan. No new production infrastructure is needed.
 
 ---
 
 ## Provenance
 
 Authored: respond @ design 0.11.5 - 1c6e8de, workspace main @ f0a8211
-Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond, respond, respond, respond, respond, respond, respond, respond
+Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond, respond, respond, respond, respond, respond, respond, respond, respond
 
-<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond","respond","respond","respond","respond","respond","respond","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
+<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond","respond","respond","respond","respond","respond","respond","respond","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
