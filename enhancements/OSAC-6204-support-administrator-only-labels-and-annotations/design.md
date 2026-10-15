@@ -3,7 +3,7 @@ title: support-administrator-only-labels-and-annotations
 authors:
   - Haim Tayrie <htayrie@redhat.com>
 creation-date: 2026-10-13
-last-updated: 2026-10-14
+last-updated: 2026-10-15
 tracking-link:
   - https://redhat.atlassian.net/browse/OSAC-6204
 prd:
@@ -61,7 +61,7 @@ IS-1 through IS-5 identify the PRD's five In Scope bullets. These interface IDs 
 
 | ID | Change | Requirements |
 |---|---|---|
-| IC-1 | Reserve the exact prefix; keep key/value validation | IS-1, IS-2, IS-3, IS-4, IS-5 |
+| IC-1 | Reserve the namespace and its subdomains; keep key/value validation | IS-1, IS-2, IS-3, IS-4, IS-5 |
 | IC-2 | Cover all 35 private persistent types and supported metadata updates | IS-1, IS-2, IS-4 |
 | IC-3 | Preserve tenant reserved entries using existing masks and version locking | IS-1, IS-3, IS-4 |
 | IC-4 | Reject forbidden server input and named client operations atomically | IS-3, IS-4 |
@@ -77,9 +77,9 @@ IS-1 through IS-5 identify the PRD's five In Scope bullets. These interface IDs 
 
 #### Reserved keys and resource scope
 
-Add a shared predicate for the exact, case-sensitive prefix `admin.osac.openshift.io/`. No wildcard, normalization, or subdomain inheritance applies. Keep existing key/value validation, including uppercase name segments. [Research: §1]
+Add a shared predicate for `admin.osac.openshift.io` and its subdomains. Split valid keys at `/`; the DNS prefix must equal `admin.osac.openshift.io` or end with `.admin.osac.openshift.io`. Keep case-sensitive matching and existing key/value validation, including uppercase name segments. [User: review alignment]
 
-`admin.osac.openshift.io/tracking-id` is reserved. `child.admin.osac.openshift.io/tracking-id`, `admin.osac.openshift.io.example/tracking-id`, `osac.openshift.io/tenant`, `osac.openshift.io/owner-reference`, `admin`, and `system` stay ordinary.
+`admin.osac.openshift.io/tracking-id` and `child.admin.osac.openshift.io/tracking-id` are reserved, including deeper subdomains. `fakeadmin.osac.openshift.io/tracking-id`, `admin.osac.openshift.io.example/tracking-id`, `osac.openshift.io/tenant`, `osac.openshift.io/owner-reference`, `admin`, and `system` stay ordinary. Keys without a `/` have no reserved DNS prefix.
 
 Cover all 35 persistent types:
 
@@ -263,7 +263,7 @@ Reuse Kind, PostgreSQL, Keycloak, and Kafka harnesses. Add the G-1 browser runne
 
 ## Provenance
 
-Authored: revise @ design 0.11.5 - 1c6e8de, workspace main @ f0a8211
-Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise
+Authored: respond @ design 0.11.5 - 1c6e8de, workspace main @ f0a8211
+Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond
 
-<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
+<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->

@@ -622,7 +622,7 @@ A tenant-visible mutable object contains multiple ordinary/reserved entries in b
 - The older client receives success for the valid ordinary request and reports no local reserved-removal error; stored reserved entries remain unchanged. The server does not infer an explicit removal from omission.
 - Raw reserved entries still fail atomically under TC-IS3-02; merging does not silently accept a supplied forbidden key.
 
-#### TC-IS4-02: Prefix boundary and operational metadata remain ordinary
+#### TC-IS4-02: Namespace boundaries and ordinary operational metadata
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -636,13 +636,13 @@ Use valid ordinary keys including osac.openshift.io/tenant and osac.openshift.io
 
 ##### Steps
 
-1. Evaluate exact admin.osac.openshift.io/key and a different valid DNS prefix such as x.admin.osac.openshift.io/key.
-2. Exercise ordinary map handling and visibility for operational and near-prefix keys; separately test invalid-case/syntax inputs against the existing validator.
+1. Evaluate admin.osac.openshift.io/key, child.admin.osac.openshift.io/key, and a.b.admin.osac.openshift.io/key. Seed them through an authorized private write and inspect public response visibility in both maps.
+2. Exercise ordinary handling and visibility for fakeadmin.osac.openshift.io/key, admin.osac.openshift.io.example/key, the slashless key admin.osac.openshift.io, and existing operational keys; separately test invalid-case/syntax inputs against the existing validator.
 3. Verify values, including empty strings, retain their established validation/storage behavior.
 
 ##### Expected Results
 
-- Only exact case-sensitive admin.osac.openshift.io/ matching invokes the reserved rule; there is no subdomain inheritance, wildcard, or case normalization.
+- The base DNS namespace and every dot-delimited subdomain are reserved and omitted from public responses. Match case-sensitively without normalization; similarly named domains and slashless keys remain ordinary.
 - Operational isolation/lifecycle keys are not reclassified as reserved. Existing validation and resource-specific ownership restrictions still apply to ordinary keys.
 - Invalid keys fail under the existing syntax contract; this feature adds no broader acceptance.
 
@@ -720,7 +720,7 @@ Use older ordinary CLI fixtures, updated clients against legacy server fixtures,
 
 ### IS-5: Prefix and behavior documentation
 
-#### TC-IS5-01: Documentation defines the exact prefix and matching examples
+#### TC-IS5-01: Documentation defines the namespace and subdomain matching
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -739,7 +739,7 @@ API reference, administrator guide, and tenant guide drafts accompany the implem
 
 ##### Expected Results
 
-- Every guide names admin.osac.openshift.io/ exactly and explains case-sensitive prefix matching without inheritance or configurable variants.
+- Every guide names admin.osac.openshift.io/ and explains case-sensitive matching of the base DNS namespace and all subdomains, including examples that reject similar non-subdomain names. No configurable namespace variants are introduced.
 - Examples agree with executable contract cases and preserve the distinction between reserved matching and existing syntax validation.
 
 #### TC-IS5-02: Documentation covers personas, map semantics, errors, and compatibility
