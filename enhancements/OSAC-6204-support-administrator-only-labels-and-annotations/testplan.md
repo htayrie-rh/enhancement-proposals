@@ -251,13 +251,14 @@ Accounts represent both administrators, Tenant Admin, Tenant User, and the restr
 ##### Steps
 
 1. Evaluate the supported persona/group mapping and copy the explicit is_admin result into Subject.
-2. Exercise private reserved reads/writes for each account; repeat a public read with an administrator account.
+2. Exercise private reserved reads/writes for each account. For both administrator accounts, repeat a public read and submit reserved Create/Update input where those public methods exist.
 3. Give a fixture broad tenant visibility without administrator authority and repeat the private metadata read.
 
 ##### Expected Results
 
 - Both supported administrators receive the same reviewed reserved-metadata authority. False or missing is_admin defaults to no authority.
 - Tenant roles and CSI universal-tenant visibility do not become administrator authority. Public administrator calls still receive the tenant metadata projection.
+- Public reserved Create/Update requests from either administrator return PermissionDenied and apply no changes or side effects. Administrator authority never bypasses the public API's reserved-key restriction.
 - Private RPC access continues to require the existing method/object authorization independently of metadata projection.
 
 #### TC-IS1-09: Version locking protects administrator replacement maps

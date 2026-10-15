@@ -99,18 +99,21 @@ Each has private Update; service enablement still applies. Hub, NetworkClass, St
 
 Carry OPA's evaluated `is_admin` boolean in AuthzDecision and Subject, defaulting to false. Preserve the original public/private method when public handlers delegate to private code. [Codebase: fulfillment-service/internal/auth/authorization_evaluator.go; fulfillment-service/internal/auth/auth_subject.go]
 
+The public API hides reserved labels and annotations and rejects their explicit use in Create/Update for every caller, including administrators. Reserved edits require the private API. Public whole-map updates preserve stored reserved entries.
+
 | Original API view | Reserved metadata |
 |---|---|
 | Private, authorized administrator | Read, create, edit, remove |
-| Public, any caller; private, non-admin | Hidden; explicit writes denied |
+| Public, any caller, including administrators | Hidden; explicit writes denied |
+| Private, non-admin | Hidden; explicit writes denied |
 
-Add an interceptor after authorization and before dependency creation/reference processing. For unprivileged Create/Update, reject every supplied reserved entry or accepted explicit reserved-key mask path with `PermissionDenied`, including unchanged values, absent targets, nested Metadata, and keys outside the mask. Apply no ordinary subset. Administrator Create uses the existing maps and resource validation. [Locked: D4]
+Add an interceptor after authorization and before dependency creation/reference processing. For public Create/Update requests and non-admin private Create/Update requests, reject every supplied reserved entry or accepted explicit reserved-key mask path with `PermissionDenied`, including unchanged values, absent targets, nested Metadata, and keys outside the mask. Apply no ordinary subset. Authorized private Create uses the existing maps and resource validation. [Locked: D4]
 
 #### Whole-map Update
 
 Use existing `object`, `update_mask`, and `lock` fields. Clients select `metadata.labels`, `metadata.annotations`, or both and send complete replacement maps.
 
-| Selected-map input | Tenant/public caller | Authorized private administrator |
+| Selected-map input | Public caller / private non-admin | Authorized private administrator |
 |---|---|---|
 | Ordinary entries | Replace ordinary portion; retain stored reserved portion | Replace the map, deleting omitted entries |
 | Reserved entry supplied | Reject the entire request, even outside the mask | Store the supplied entries |
@@ -123,7 +126,7 @@ Change GenericServer's update path:
 
 1. Read the stored object under the existing row lock and check the requested version.
 2. Apply the existing mask or unmasked replacement to a detached candidate.
-3. For unprivileged callers, replace the candidate's reserved portion in both maps with the locked stored portion. Preserve ordinary replacement/deletion behavior.
+3. For public requests and non-admin private requests, replace the candidate's reserved portion in both maps with the locked stored portion. Preserve ordinary replacement/deletion behavior.
 4. Validate and save using existing identity, ownership, and resource rules. Restored stored entries are trusted data; do not reject them as caller input.
 
 Keep forwarding the mask and `lock` through public handlers. In TxInterceptor, call `tx.ReportError(&err)` before transaction End so returned handler errors roll back earlier writes. [Codebase: fulfillment-service/internal/servers/generic_server.go; fulfillment-service/internal/database/database_tx_interceptor.go]
@@ -264,6 +267,6 @@ Reuse Kind, PostgreSQL, Keycloak, and Kafka harnesses. Add the G-1 browser runne
 ## Provenance
 
 Authored: respond @ design 0.11.5 - 1c6e8de, workspace main @ f0a8211
-Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond
+Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond, respond
 
-<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
+<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
