@@ -19,7 +19,7 @@ The PRD uses In Scope bullets rather than FR/NFR identifiers. IS-1 through IS-5 
 | IS-4 | Ordinary metadata keeps its existing behavior | TC-IS4-01–05 | IC-1, IC-2, IC-3, IC-4, IC-5, IC-6, IC-8, IC-9 |
 | IS-5 | Document exact reserved prefix and matching behavior | TC-IS5-01–02 | IC-1, IC-10 |
 
-Under confirmed D6, tenant map omission always preserves stored reserved entries. Named forbidden CLI/console operations fail locally before any Update; supplied reserved entries and accepted explicit protected mask paths fail on the server. A whole-map request cannot reveal a removal target that a client has already discarded.
+Under confirmed D6, public map omission always preserves stored reserved entries. Named forbidden public CLI/console operations fail locally before any Update; supplied reserved entries and accepted explicit protected mask paths fail on the public server. A whole-map request cannot reveal a removal target that a client has already discarded. Private API calls retain existing complete-map behavior under existing authorization, with no new metadata role check.
 
 Request locking remains optional: `lock` omitted/false skips the version comparison; `lock=true` checks the supplied version. Reserved-key protection applies to both modes. Database row locking and transaction atomicity remain in use in either mode.
 
@@ -29,7 +29,7 @@ Retired IDs: TC-IS1-07 and TC-IS3-07. Existing case IDs are not reused.
 
 ## Shared fixtures and oracles
 
-Use two accounts representing Cloud Provider Admin and Cloud Infrastructure Admin with the existing platform-admin authorization, plus Tenant Admin and Tenant User accounts with their existing roles. No new persona roles or account-provisioning workflow are needed. Include a second tenant for isolation controls and the existing restricted private CSI identity. A role display string alone is not authority. Both admin personas must pass the same matrix; tenant cases run as both tenant personas where the method is authorized for ordinary use.
+Use two accounts representing Cloud Provider Admin and Cloud Infrastructure Admin with the existing platform-admin authorization, plus Tenant Admin and Tenant User accounts with their existing roles. No new persona roles or account-provisioning workflow are needed. Include a second tenant for isolation controls and the existing restricted private CSI identity. Preserve existing method/object authorization for each account; metadata rules depend on the API view. Both admin personas must pass the same matrix; public tenant cases run as both tenant personas where the method is authorized for ordinary use.
 
 Seed valid stored dependencies for every object type. Use ordinary keys such as `example.org/environment` and reserved keys such as `admin.osac.openshift.io/tracking-id` in both maps, with unique marker values to detect disclosure. Include empty strings, multiple entries, and objects without protected entries. Do not rely on external provider provisioning to test a metadata edit; explicitly record seeded lifecycle/readiness states and the fact that no provider provisioning boundary is exercised.
 
@@ -216,7 +216,7 @@ Both administrators can sign in to the deployed console. Valid fixtures exist fo
 - Editors display complete private maps and submit their edited replacements using existing update options, with no mandatory version checking. Untouched entries and unselected maps/fields remain intact.
 - Connect/proxy/API persistence and existing detail-page links reach the same shared editor.
 
-#### TC-IS1-08: Administrator authority comes from the evaluated OPA decision
+#### TC-IS1-08: Existing authorization and original API view define behavior
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -226,20 +226,20 @@ Both administrators can sign in to the deployed console. Valid fixtures exist fo
 
 ##### Preconditions
 
-Accounts represent both administrators, Tenant Admin, Tenant User, and the restricted private CSI client. OPA decision fixtures include true, false, and absent is_admin.
+Accounts represent both administrators, Tenant Admin, Tenant User, and the restricted private CSI client. Record their existing allowed methods, object scope, and tenant visibility as the baseline.
 
 ##### Steps
 
-1. Evaluate the supported persona/group mapping and copy the explicit is_admin result into Subject.
-2. Exercise private reserved reads/writes for each account. For both administrator accounts, repeat a public read and submit reserved Create/Update input where those public methods exist.
-3. Give a fixture broad tenant visibility without administrator authority and repeat the private metadata read.
+1. Exercise allowed and disallowed private methods for each account and compare authorization with the baseline.
+2. For both administrator accounts, read and edit reserved entries through allowed private methods; repeat reads and reserved Create/Update input through corresponding public methods where they exist.
+3. Verify the original public view survives in-process delegation to private handlers. Read a Volume through an allowed private CSI method as a control.
 
 ##### Expected Results
 
-- Both supported administrators receive the same reviewed reserved-metadata authority. False or missing is_admin defaults to no authority.
-- Tenant roles and CSI universal-tenant visibility do not become administrator authority. Public administrator calls still receive the tenant metadata projection.
-- Public reserved Create/Update requests from either administrator return PermissionDenied and apply no changes or side effects. Administrator authority never bypasses the public API's reserved-key restriction.
-- Private RPC access continues to require the existing method/object authorization independently of metadata projection.
+- Existing method/object and tenant/project authorization is unchanged for every account. Both administrator personas keep the same existing private access; tenant identities gain no private methods.
+- Authorized private calls retain complete metadata, including allowed CSI Volume reads. No new is_admin decision or Subject field is required.
+- Public calls return the same filtered view for every caller, including administrators, even when a public handler delegates to private code.
+- Public reserved Create/Update requests from either administrator return PermissionDenied and apply no changes or side effects. Private method access never bypasses a public call's reserved-key restriction.
 
 #### TC-IS1-09: Optional version checks retain existing update semantics
 
@@ -269,7 +269,7 @@ An administrator reads a complete map at version v; a second authorized update c
 
 ### IS-2: Tenant visibility
 
-#### TC-IS2-01: Every external object response omits reserved entries
+#### TC-IS2-01: Every public object response omits reserved entries
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -279,19 +279,19 @@ An administrator reads a complete map at version v; a second authorized update c
 
 ##### Preconditions
 
-For each public metadata-bearing type, seed both maps with ordinary and reserved entries. Also seed nested Metadata and unprivileged private-service fixtures.
+For each public metadata-bearing type, seed both maps with ordinary and reserved entries. Include nested Metadata and authorized private-service controls.
 
 ##### Steps
 
 1. Get and List as both tenant personas; perform allowed ordinary Create/Update that returns an object containing stored reserved metadata.
 2. Repeat public reads with administrator credentials and inspect nested response objects.
-3. Compare external responses against the authorized private source and inspect whether projection mutated that source.
+3. Compare public responses with authorized private responses and the stored source; inspect whether projection mutated that source.
 
 ##### Expected Results
 
-- No reserved key or value appears in public or unprivileged private object responses; ordinary entries, authorized resource scope, and versions retain their established shape.
+- No reserved key or value appears in public object responses; ordinary entries, authorized resource scope, and versions retain their established shape.
 - Administrators using public RPCs get the same projection. Nested actual Metadata messages are projected recursively, while unrelated payload maps are unchanged.
-- Projection uses detached responses; stored and in-process administrator objects retain their full maps.
+- Projection uses detached responses; private responses, stored objects, and in-process private objects retain their full maps under existing authorization.
 
 #### TC-IS2-02: Event payload and filter projection preserve privacy
 
@@ -303,17 +303,17 @@ For each public metadata-bearing type, seed both maps with ordinary and reserved
 
 ##### Preconditions
 
-Real Kafka-backed EventsServer coverage is available. Tenant watches are ready before publication; seed an object with both map kinds and register an admin private watcher.
+Real Kafka-backed EventsServer coverage is available. Public watches are ready before publication; seed an object with both map kinds and register a watcher with existing private Watch permission.
 
 ##### Steps
 
 1. Publish a create/update event containing reserved entries, nested Metadata, and a known ordinary filter match.
-2. Consume through public tenant and private administrator watches; compare event identifiers, timestamps, and visible entries.
+2. Consume through public tenant, public administrator, and authorized private watches; compare event identifiers, timestamps, and visible entries.
 3. Change a reserved value without changing ordinary matching entries and repeat; allow at most 30 seconds after publication in the test harness.
 
 ##### Expected Results
 
-- Tenant events omit reserved entries before the tenant event filter runs; authorized private administrator events retain them.
+- All public events omit reserved entries before the public event filter runs; authorized private events retain them under existing permissions.
 - Ordinary matching behavior, identifiers, and timestamps remain unchanged. No stored or publisher object is mutated by projection.
 - The 30-second bound is a bounded test wait, not a new product delivery SLA; publication/subscription readiness failures are diagnosed separately.
 
@@ -364,7 +364,7 @@ Tenant Admin and Tenant User sessions have access to objects with unique reserve
 - Reserved keys and marker values are absent from tenant API/Connect response bodies, UI display/search results, and CLI structured/human output.
 - Ordinary search and display behavior remains consistent with the existing authorized public view. Hiding a field in the frontend alone does not satisfy this case.
 
-#### TC-IS2-05: Restricted private clients remain unprivileged metadata readers
+#### TC-IS2-05: Private clients keep existing metadata access and method restrictions
 
 | Interface Change | Priority | Automation |
 |---|---|---|
@@ -374,18 +374,18 @@ Tenant Admin and Tenant User sessions have access to objects with unique reserve
 
 ##### Preconditions
 
-The existing CSI identity has its documented restricted method access and universal tenant visibility; fixtures span two tenants.
+The existing CSI identity has universal tenant visibility and private Volume Create/Get/Delete/List permission, without Update. Seed valid Volume dependencies and fixtures across two tenants.
 
 ##### Steps
 
-1. Read an object using a private method allowed to the CSI identity.
-2. Attempt a reserved metadata write and a private method outside its existing allowlist.
-3. Compare the same allowed read using an authorized administrator.
+1. Get/List Volumes containing reserved entries through the CSI identity's allowed private methods.
+2. Create a valid Volume with reserved entries using its existing private Create permission; attempt Update and another method outside its allowlist.
+3. Compare the same allowed reads using an authorized administrator and compare stored maps after rejected methods.
 
 ##### Expected Results
 
-- CSI reads omit reserved maps despite cross-tenant visibility. Reserved writes and disallowed methods do not succeed.
-- The administrator private view retains reserved values. No method allowlist or tenant scope is widened by this feature.
+- CSI private Get/List responses retain complete maps, including reserved values. Valid private Create retains existing metadata behavior; it is not rejected by a new metadata permission check.
+- Update and other disallowed methods remain denied without changing stored objects. Administrator private reads retain the same reserved values. No method allowlist or tenant scope is widened by this feature.
 
 #### TC-IS2-06: Ephemeral review Metadata uses the same boundary without persistent CRUD
 
@@ -403,12 +403,12 @@ SelfSubjectAccessReview is an ephemeral message carrying Metadata, not one of th
 
 1. Submit a review request with ordinary metadata through each supported external view.
 2. Exercise response projection with a review response fixture containing reserved entries, including a nested review message.
-3. Submit a review carrying a reserved map entry from an unprivileged view.
+3. Submit a review carrying a reserved map entry through each supported public/private view under existing method permissions.
 
 ##### Expected Results
 
-- Ordinary review behavior remains unchanged and tenant outputs omit reserved entries wherever Metadata occurs.
-- Unprivileged reserved input is rejected before review processing. The test does not invent Get/List/Update or persistence for the ephemeral review.
+- Ordinary review behavior remains unchanged. Public outputs omit reserved entries wherever Metadata occurs; allowed private review calls retain existing complete-map behavior.
+- Public reserved input is rejected before review processing. Private method authorization remains unchanged. The test does not invent Get/List/Update or persistence for the ephemeral review.
 
 ### IS-3: Atomic rejection of tenant mutations
 
@@ -493,7 +493,7 @@ Tenant clients see only ordinary maps. Prepare present/absent reserved-key fixtu
 
 ##### Preconditions
 
-Existing clients use ordinary update_mask; capture complete private snapshots for otherwise identical objects with a reserved key present and absent.
+Existing clients call public Update with ordinary update_mask; capture complete private snapshots for otherwise identical objects with a reserved key present and absent.
 
 ##### Steps
 
@@ -742,12 +742,12 @@ Guide examples, CLI help, and API schema are available for the proposed implemen
 
 1. Review both admin journeys and both tenant expectations across API, CLI, and console.
 2. Check native gRPC, existing REST PATCH/query masks, and Connect examples for complete selected maps, omission-based deletion, empty maps/values, the feature-enabled server requirement, and stale versions.
-3. Check the all-resource inventory, local named-removal error, raw-input server rejection, tenant omission preservation, and older-client/server limitations.
+3. Check the all-resource inventory, local named-removal error, public raw-input rejection, public omission preservation, unchanged private behavior, and older-client/server limitations.
 
 ##### Expected Results
 
-- Guides describe identical admin actions on all persistent types and private-only types, tenant privacy, and whole-request rejection for observable forbidden input.
-- Examples use existing Update maps/masks and make locking optional: omitted/false requires no version precondition; true checks the supplied version. Administrator omission deletes while tenant omission preserves. Named CLI/console removal is checked before sending a map, and discarded targets cannot be inferred by the server.
+- Guides describe identical admin actions on all persistent types and private-only types, public privacy, and whole-request rejection for observable forbidden public input. Existing method/object authorization is unchanged; permitted private clients retain complete metadata with no new metadata role check.
+- Examples use existing Update maps/masks and make locking optional: omitted/false requires no version precondition; true checks the supplied version. Private omission deletes while public omission preserves. Named public CLI/console removal is checked before sending a map, and discarded targets cannot be inferred by the server.
 - Guides state that privacy requires a server implementing this feature; older servers keep their existing visibility rules. Support guidance documents older-client limitations, excludes in-place upgrades, and logs no protected values.
 
 ## Coverage summary and remaining work

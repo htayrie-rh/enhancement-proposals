@@ -42,7 +42,7 @@ CLI removals lose their target after local map editing, so named forbidden opera
 
 Both Cloud Provider Admin and Cloud Infrastructure Admin manage reserved metadata on all covered resources through the private API, CLI, and console. Tenant views omit it. [Locked: D3, D5]
 
-Use existing whole-map updates: authorized private administrators replace selected maps; every tenant update retains the stored reserved portion. Reject supplied forbidden keys atomically, and reject named tenant CLI/console operations before sending Update. [Locked: D4, D6]
+Use existing whole-map updates: private API calls replace selected maps; public API updates retain the stored reserved portion. Reject supplied forbidden keys atomically in public requests, and reject named public CLI/console operations before sending Update. [Locked: D4, D6]
 
 ### Workflow Description
 
@@ -67,7 +67,7 @@ IS-1 through IS-5 identify the PRD's five In Scope bullets. These interface IDs 
 | IC-4 | Reject forbidden server input and named client operations atomically | IS-3, IS-4 |
 | IC-5 | Filter object responses, nested Metadata, and events | IS-2, IS-4 |
 | IC-6 | Protect filters and matching counts | IS-2, IS-4 |
-| IC-7 | Carry existing administrator authority; retain tenant/client permissions | IS-1, IS-2, IS-3 |
+| IC-7 | Preserve existing authorization; apply protection by API view | IS-1, IS-2, IS-3 |
 | IC-8 | Update CLI validation, map submission, and output | IS-1, IS-2, IS-3, IS-4 |
 | IC-9 | Add the console editor and protect tenant display/search | IS-1, IS-2, IS-3, IS-4 |
 | IC-10 | Document prefix, operations, errors, and examples | IS-5 |
@@ -96,23 +96,22 @@ Each has private Update; service enablement still applies. Hub, NetworkClass, St
 
 #### Authorization and write validation
 
-Carry OPA's evaluated `is_admin` boolean in AuthzDecision and Subject, defaulting to false. Preserve the original public/private method when public handlers delegate to private code. [Codebase: fulfillment-service/internal/auth/authorization_evaluator.go; fulfillment-service/internal/auth/auth_subject.go]
+Keep existing method, object, tenant, and project authorization unchanged. No OPA, AuthzDecision, Subject, or administrator-flag changes are needed. Preserve the original public/private API view when public handlers delegate to private code.
 
 The public API hides reserved labels and annotations and rejects their explicit use in Create/Update for every caller, including administrators. Reserved edits require the private API. Public whole-map updates preserve stored reserved entries.
 
 | Original API view | Reserved metadata |
 |---|---|
-| Private, authorized administrator | Read, create, edit, remove |
+| Private, any caller with existing method/object permission | Complete maps; existing read/write behavior |
 | Public, any caller, including administrators | Hidden; explicit writes denied |
-| Private, non-admin | Hidden; explicit writes denied |
 
-Add an interceptor after authorization and before dependency creation/reference processing. For public Create/Update requests and non-admin private Create/Update requests, reject every supplied reserved entry or accepted explicit reserved-key mask path with `PermissionDenied`, including unchanged values, absent targets, nested Metadata, and keys outside the mask. Apply no ordinary subset. Authorized private Create uses the existing maps and resource validation. [Locked: D4]
+Add an interceptor after authorization and before dependency creation/reference processing. For public Create/Update requests, reject every supplied reserved entry or accepted explicit reserved-key mask path with `PermissionDenied`, including unchanged values, absent targets, nested Metadata, and keys outside the mask. Apply no ordinary subset. Private Create/Update retains existing map handling, authorization, and resource validation. [Locked: D4]
 
 #### Whole-map Update
 
 Use the existing Update request. Clients select `metadata.labels`, `metadata.annotations`, or both and send complete replacement maps.
 
-| Selected-map input | Public caller / private non-admin | Authorized private administrator |
+| Selected-map input | Public API | Private API |
 |---|---|---|
 | Ordinary entries | Replace ordinary portion; retain stored reserved portion | Replace the map, deleting omitted entries |
 | Reserved entry supplied | Reject the entire request, even outside the mask | Store the supplied entries |
@@ -125,7 +124,7 @@ Change GenericServer's update path:
 
 1. Read the stored object under the existing database row lock.
 2. Apply the existing mask or unmasked replacement to a detached candidate.
-3. For public requests and non-admin private requests, replace the candidate's reserved portion in both maps with the locked stored portion. Preserve ordinary replacement/deletion behavior.
+3. For public requests, replace the candidate's reserved portion in both maps with the locked stored portion. Preserve ordinary replacement/deletion behavior. Private requests keep existing replacement semantics.
 4. Validate and save using existing identity, ownership, and resource rules. Restored stored entries are trusted data; do not reject them as caller input.
 
 In TxInterceptor, call `tx.ReportError(&err)` before transaction End so returned handler errors roll back earlier writes. [Codebase: fulfillment-service/internal/servers/generic_server.go; fulfillment-service/internal/database/database_tx_interceptor.go]
@@ -143,9 +142,9 @@ This replaces labels under the map rules; an empty map clears the permitted port
 
 #### Response, event, and query privacy
 
-Filter detached unprivileged responses recursively through actual Metadata messages, including Get/List, Create/Update responses, nested objects, and streams. Leave unrelated maps and internal/stored objects intact. Events.Watch must project metadata before evaluating tenant predicates. [Codebase: fulfillment-service/internal/servers/events_server.go]
+Filter detached public responses recursively through actual Metadata messages, including Get/List, Create/Update responses, nested objects, and streams. Leave private responses, unrelated maps, and internal/stored objects intact. Public Events.Watch must project metadata before evaluating public predicates. [Codebase: fulfillment-service/internal/servers/events_server.go]
 
-Inspect parsed, type-checked CEL filters. Explicit reserved-key references, membership checks, and mixed predicates return `PermissionDenied` before item/count SQL, independent of key existence. Evaluate supported whole-map predicates against JSONB with reserved entries excluded; keep ordinary literal-key indexed SQL and existing unsupported-operator errors. Authorized private administrators query full maps. [Codebase: fulfillment-service/internal/database/dao/filter_translator.go]
+For public queries, inspect parsed, type-checked CEL filters. Explicit reserved-key references, membership checks, and mixed predicates return `PermissionDenied` before item/count SQL, independent of key existence. Evaluate supported whole-map predicates against JSONB with reserved entries excluded; keep ordinary literal-key indexed SQL and existing unsupported-operator errors. Private queries keep existing access to complete maps. [Codebase: fulfillment-service/internal/database/dao/filter_translator.go]
 
 #### Private networking Updates
 
@@ -155,14 +154,14 @@ Retain supported ordinary/mixed edits, specification/status/ownership validation
 
 #### CLI and console
 
-- **CLI:** retain `label`/`annotate`, `key=value`, and `key-`. Validate all named operations before editing the fetched map; a forbidden set/removal, including an absent key in a mixed command, sends no Update and exits nonzero. Submit allowed changes as complete selected maps using existing update options. Private mode selects the API; server authorization decides access.
-- **Console:** add `/admin/metadata`, a type/object selector, and shared map editor for all 35 private services. Link existing detail pages; keep private-only types in administrator navigation. Use the `admins` group claim for `isPlatformAdmin` and forward the user's token. Tenant pages use filtered maps for display/search and validate named operations. Editors retain unsaved changes after errors. [Locked: D5, D6]
+- **CLI:** retain `label`/`annotate`, `key=value`, and `key-`. In public mode, validate all named operations before editing the fetched map; a forbidden set/removal, including an absent key in a mixed command, sends no Update and exits nonzero. Submit allowed changes as complete selected maps using existing update options. Private mode selects the API; existing server authorization decides access.
+- **Console:** add `/admin/metadata`, a type/object selector, and shared map editor for all 35 private services. Link existing detail pages and reuse existing administrator navigation. Forward the user's token; existing private method authorization controls access, with no new metadata permission check. Public pages use filtered maps for display/search and validate named operations. Editors retain unsaved changes after errors. [Locked: D5, D6]
 
 Refresh UI types for the existing API inventory and update API reference, CLI help, administrator/tenant guides, and component testing maps. Document the reserved namespace, subdomain matching, and server support requirement. Reuse metadata columns/indexes, versions, and events; no API field, database migration, CRD/controller/AAP change, or Helm setting is required.
 
 ### Security Considerations
 
-Enforce protection on the server, independently of UI roles, headers, or reflection credentials. Broad tenant visibility is not administrator authority: the restricted Container Storage Interface (CSI) identity's private Volume reads must also omit reserved entries. [Codebase: fulfillment-service/internal/auth/policies/authz.rego]
+Enforce public API protection on the server, independently of UI roles, headers, or reflection credentials. Keep existing private permissions: the Container Storage Interface (CSI) identity's allowed Volume Create/Get/Delete/List methods retain complete metadata; Update remains disallowed. No method allowlist or tenant scope is widened. [Codebase: fulfillment-service/internal/auth/policies/authz.rego]
 
 ### Failure Handling and Recovery
 
@@ -179,7 +178,7 @@ Tenant map omission succeeds for ordinary edits and preserves reserved entries. 
 
 ### RBAC / Tenancy
 
-Reuse existing platform-admin, method/object, tenant/project, and trusted controller permissions. Both admin personas have identical coverage; restricted clients remain non-admin. Retain tenant and owner-reference isolation annotations. No new roles or resources are added. [Locked: D5]
+Reuse existing method/object, tenant/project, and trusted controller permissions. Both admin personas have identical coverage. Reserved-key rules depend on the original public/private API view, with no additional role check. Retain tenant and owner-reference isolation annotations. No new roles or resources are added. [Locked: D5]
 
 ### Observability and Monitoring
 
@@ -193,7 +192,7 @@ Use existing RPC status metrics and logs; add no metrics or events. Log methods 
 | Replacement loses entries | Retain untouched client entries and restore public callers' reserved entries from the locked row. |
 | Client discards forbidden removal intent | Validate named operations before map editing. |
 | Whole-map queries add cost | Keep literal-key indexes and inspect query plans. |
-| UI authority or networking behavior diverges | Verify token/OPA mapping and existing networking validators. |
+| API view or networking behavior diverges | Preserve the original API view through delegation and retain existing networking validators. |
 
 API/authentication, networking, and console maintainers review their respective boundaries.
 
@@ -228,7 +227,7 @@ The [test plan](testplan.md) defines 28 cases covering five requirements and 10 
 
 ### Unit Tests
 
-Prefix/validation; raw-input and named-operation rejection; map selection/preservation; version/rollback; nested projection; filter privacy; administrator authority; CLI/console request and error handling.
+Prefix/validation; public raw-input and named-operation rejection; map selection/preservation; version/rollback; public nested projection and filter privacy; unchanged authorization/private behavior; CLI/console request and error handling.
 
 ### Integration Tests
 
@@ -252,7 +251,7 @@ Privacy requires a server implementing this feature; older servers retain their 
 
 ## Support Procedures
 
-Inspect RPC status/logs and authorized private Get without logging values. Correct permissions/input or reload stale maps before retrying. Revoke admin membership to stop an account's reserved writes; server privacy and running workloads remain active.
+Inspect RPC status/logs and authorized private Get without logging values. Correct permissions/input or reload stale maps before retrying. Use existing authorization controls to revoke an account's private method access; public privacy and running workloads remain active.
 
 ## Infrastructure Needed
 
@@ -263,6 +262,6 @@ Reuse Kind, PostgreSQL, Keycloak, and Kafka harnesses. Add the G-1 browser runne
 ## Provenance
 
 Authored: respond @ design 0.11.5 - 1c6e8de, workspace main @ f0a8211
-Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond, respond, respond, respond, respond
+Phases: draft, revise, revise, revise, revise, revise, revise, revise, revise, revise, respond, respond, respond, respond, respond, respond
 
-<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond","respond","respond","respond","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
+<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","workflow":"design","workflow_version":"0.11.5","ai_workflows":"1c6e8de","source_repo":"f0a8211","source_repo_branch":"main","commits_behind_main":0,"commits_ahead_main":0,"main_ref":"main","phases":["draft","revise","revise","revise","revise","revise","revise","revise","revise","revise","respond","respond","respond","respond","respond","respond"],"authoring_modes":["skill"],"context_changed":false,"origin_untracked":false} -->
